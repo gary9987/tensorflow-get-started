@@ -71,6 +71,7 @@ if __name__ == '__main__':
         tf.keras.layers.Dropout(0.2),
         tf.keras.layers.Dense(10)
     ])
+
     model.compile(optimizer=optimizer,
               loss=loss_object,
               metrics=['accuracy'])

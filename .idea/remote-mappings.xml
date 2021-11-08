@@ -3,13 +3,7 @@
   <component name="RemoteMappingsManager">
     <list>
       <list>
-        <remote-mappings server-id="python@sftp://gary@cml0.csie.ntu.edu.tw:20029/usr/bin/python3">
-          <settings>
-            <list>
-              <mapping local-root="$PROJECT_DIR$" remote-root="/home/gary/Desktop/tensorflow-get-started" />
-            </list>
-          </settings>
-        </remote-mappings>
+        <remote-mappings server-id="python@2778dcb4-2084-401d-9e71-f6a55feff812" />
       </list>
     </list>
   </component>
