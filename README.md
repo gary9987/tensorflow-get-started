@@ -1,9 +1,9 @@
 # tensorflow-get-started
 A learning note.
 ## tensorflow_dataset
-### tensorflow_dataset as tfds
+### import tensorflow_dataset as tfds
 ```python=
-# Load tf_flowers dataset
+# load tf_flowers dataset
 dataset = tfds.load("tf_flowers", split=tfds.Split.TRAIN, as_supervised=True)
 
 # using map to do data augmentation
