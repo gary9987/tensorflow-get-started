@@ -26,3 +26,18 @@ for images, labels in dataset:
 ## TFRecords
 A tensorflow dataset format.
 - [Reference](https://tf.wiki/zh_hans/basic/tools.html#tfrecord)
+### Write a record to a file
+```python
+output_file_path = './output/'
+tfrecord_file = output_file_path + 'train.tfrecords'
+with tf.io.TFRecordWriter(tfrecord_file) as writer:
+    for image, label in mnist_dataset:
+        image = image.numpy().tobytes() # transform dataset nd.array to a byte list
+        label = int(label) # transform dataset label nd.array to a int64
+        feature = {  # create tf.train.Feature dictionary
+            'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image])),  # Image is a byte list
+            'label': tf.train.Feature(int64_list=tf.train.Int64List(value=[label]))  # Label is a int64
+        }
+        record_bytes = tf.train.Example(features=tf.train.Features(feature=feature))
+        writer.write(record_bytes.SerializeToString())
+```
