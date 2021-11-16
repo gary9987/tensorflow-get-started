@@ -1,5 +1,5 @@
 # tensorflow-get-started
-A learning note.
+A learning note about tensorflow dataset and TFRecords.
 ## tensorflow_dataset
 ### tfds
 ```python=
