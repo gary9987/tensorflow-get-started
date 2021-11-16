@@ -41,3 +41,19 @@ with tf.io.TFRecordWriter(tfrecord_file) as writer:
         record_bytes = tf.train.Example(features=tf.train.Features(feature=feature))
         writer.write(record_bytes.SerializeToString())
 ```
+
+## tfds_to_tfrecords
+- A simple tool help us transform tfds dataset to TFRecords format file.
+- Usage example
+  ```python
+  from tfds_to_tfrecords import TfdsToTFRecords
+  mnist_dataset, metadata = tfds.load(
+          'mnist',
+          split='train',
+          with_info=True,
+          as_supervised=True,
+      )
+  output_file_path = './output/train.tfrecords'
+  helper = TfdsToTFRecords(mnist_dataset)
+  helper.to_tfrecords(output_file_path)
+  ```

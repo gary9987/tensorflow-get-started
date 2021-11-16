@@ -2,9 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a05f0632-3e6e-4f36-8bf3-374b2b9185b5" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/tfds_to_tfrecords.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tfds_to_tfrecords.py" beforeDir="false" afterPath="$PROJECT_DIR$/tfds_to_tfrecords.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -98,7 +97,7 @@
       <workItem from="1636359174800" duration="1230000" />
       <workItem from="1636465983616" duration="8000" />
       <workItem from="1637066139417" duration="1959000" />
-      <workItem from="1637069387811" duration="4944000" />
+      <workItem from="1637069387811" duration="6531000" />
     </task>
     <servers />
   </component>
@@ -119,7 +118,7 @@
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/tensorflow_get_started$main.coverage" NAME="main Coverage Results" MODIFIED="1636359658537" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/tensorflow_get_started$tfds_to_tfrecords.coverage" NAME="tfds_to_tfrecords Coverage Results" MODIFIED="1637075782314" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/tensorflow_get_started$tfds_to_tfrecords.coverage" NAME="tfds_to_tfrecords Coverage Results" MODIFIED="1637077485846" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/tensorflow_get_started$train_mnist.coverage" NAME="train_mnist_tfds Coverage Results" MODIFIED="1637069669429" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
