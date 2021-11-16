@@ -5,7 +5,7 @@
       <paths name="gary@cml0.csie.ntu.edu.tw:20029 (3)">
         <serverdata>
           <mappings>
-            <mapping deploy="/tmp/pycharm_project_994" local="$PROJECT_DIR$" />
+            <mapping deploy="/tmp/pycharm" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

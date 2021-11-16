@@ -55,6 +55,9 @@ if __name__ == '__main__':
     val_ds = prepare(val_ds, valid_augmentation, augment=True)
     test_ds = prepare(test_ds, valid_augmentation, augment=True)
 
+    train_ds = train_ds.cache()
+    val_ds = val_ds.cache()
+
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
@@ -66,9 +69,13 @@ if __name__ == '__main__':
 
     # Create an instance of the model
     model = tf.keras.models.Sequential([
-        tf.keras.layers.Flatten(input_shape=(28, 28)),
-        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Conv2D(8, 3, activation='relu'),
+        tf.keras.layers.Conv2D(16, 3, activation='relu'),
+        tf.keras.layers.Conv2D(32, 3, activation='relu'),
+        tf.keras.layers.Flatten(),
         tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dense(64, activation='relu'),
         tf.keras.layers.Dense(10)
     ])
 
@@ -76,7 +83,7 @@ if __name__ == '__main__':
               loss=loss_object,
               metrics=['accuracy'])
 
-    epochs = 20
+    epochs = 10
     history = model.fit(
         train_ds,
         validation_data=val_ds,

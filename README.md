@@ -1,7 +1,7 @@
 # tensorflow-get-started
 A learning note.
 ## tensorflow_dataset
-### import tensorflow_dataset as tfds
+### tfds
 ```python=
 # load tf_flowers dataset
 dataset = tfds.load("tf_flowers", split=tfds.Split.TRAIN, as_supervised=True)
@@ -15,8 +15,14 @@ dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 for images, labels in dataset:
     # training...
 ```
-- dataset.map: using gpu acceleration to do transform
-
+### Data transformation
+- dataset.map: using gpu acceleration to do transform.
+### Prefetch
+- dataset = dataset.prefetch(buffer_size)
+  - If the value tf.data.AUTOTUNE is used, then the buffer size is dynamically tuned.
+### Cache
+- dataset = dataset.cache(filename='')
+    - If a filename is not provided, the dataset will be cached in memory.
 ## TFRecords
 A tensorflow dataset format.
 - [Reference](https://tf.wiki/zh_hans/basic/tools.html#tfrecord)
