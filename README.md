@@ -26,6 +26,9 @@ for images, labels in dataset:
 ## TFRecords
 A tensorflow dataset format.
 - [Reference](https://tf.wiki/zh_hans/basic/tools.html#tfrecord)
+- [tf.data.TFRecordDataset](https://www.tensorflow.org/api_docs/python/tf/data/TFRecordDataset)
+- [TensorFlow高效讀取資料的方法——TFRecord的學習](https://www.itread01.com/content/1563624543.html)
+- [tensorflow 使用 TFRecord 读取图片（一）](https://blog.csdn.net/itnerd/article/details/91370972)
 ### Write a record to a file
 ```python
 output_file_path = './output/'
