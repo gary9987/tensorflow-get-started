@@ -1,5 +1,9 @@
 # tensorflow-get-started
 A learning note about tensorflow dataset and TFRecords.
+## File 
+- dataset_util.py: A tools for write and load tfrecords.
+- train_mnist_tfds.py: A practice to train MNIST dataset from tfds.
+- train_mnist_tfrecords: A practice to train MNIST dataset from tfrecords.
 ## tensorflow_dataset
 ### tfds
 ```python=
@@ -57,17 +61,17 @@ with tf.io.TFRecordWriter(tfrecord_file) as writer:
     )
 
     output_file_path = './output/train.tfrecords'
-    
-    # ======== Write tfrecord ======== 
+
+    # ======== Write tfrecord ========
     # Init class object with tfds dataset
     dataset = DatasetUtil(mnist_dataset)
     # transform dataset to tfrecords
     dataset.to_tfrecords(output_file_path)
-    
-    # ======== Load tfrecord ======== 
-    dataset = DatasetUtil()
+
+    # ======== Load tfrecord ========
+    dataset = DatasetUtil(shape=[28, 28, 1])
     dataset = dataset.from_tfrecords(output_file_path)
-    
+
     image, label = next(iter(dataset))
     plt.title(str(label))
     plt.imshow(image.numpy())
