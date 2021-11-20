@@ -42,18 +42,31 @@ with tf.io.TFRecordWriter(tfrecord_file) as writer:
         writer.write(record_bytes.SerializeToString())
 ```
 
-## tfds_to_tfrecords
-- A simple tool help us transform tfds dataset to TFRecords format file.
+## dataset_util
+- A simple tool help us transform tfds **image** datasets to TFRecords format file or load dataset from a TFRecords format file.
 - Usage example
   ```python
-  from tfds_to_tfrecords import TfdsToTFRecords
-  mnist_dataset, metadata = tfds.load(
-          'mnist',
-          split='train',
-          with_info=True,
-          as_supervised=True,
-      )
-  output_file_path = './output/train.tfrecords'
-  helper = TfdsToTFRecords(mnist_dataset)
-  helper.to_tfrecords(output_file_path)
+    mnist_dataset, metadata = tfds.load(
+        'mnist',
+        split='train',
+        with_info=True,
+        as_supervised=True,
+    )
+
+    output_file_path = './output/train.tfrecords'
+    
+    # ======== Write tfrecord ======== 
+    # Init class object with tfds dataset
+    dataset = DatasetUtil(mnist_dataset)
+    # transform dataset to tfrecords
+    dataset.to_tfrecords(output_file_path)
+    
+    # ======== Load tfrecord ======== 
+    dataset = DatasetUtil()
+    dataset = dataset.from_tfrecords(output_file_path)
+    
+    image, label = next(iter(dataset))
+    plt.title(str(label))
+    plt.imshow(image.numpy())
+    plt.show()
   ```
