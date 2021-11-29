@@ -88,7 +88,7 @@ if __name__ == '__main__':
     image_list = list(data_dir.glob('**/*.jpg'))
     img0 = PIL.Image.open(str(image_list[0]))
 
-    train_img = DistortColor()(tf.keras.preprocessing.image.img_to_array(img0))
+    train_img = train_preprocessing()(tf.keras.preprocessing.image.img_to_array(img0))
     plt.imshow(train_img.numpy().astype("uint8"))
     plt.show()
 
