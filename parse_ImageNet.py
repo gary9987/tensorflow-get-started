@@ -1,5 +1,8 @@
 import tensorflow as tf
 import numpy as np
+import PIL.Image
+from matplotlib import pyplot as plt
+
 
 def parse_example_proto(example_serialized):
     """Parses an Example proto containing a training example of an image.
@@ -38,20 +41,20 @@ def parse_example_proto(example_serialized):
     """
     # Dense features in Example proto.
     feature_map = {
-            'image/encoded': tf.compat.v1.FixedLenFeature([], dtype=tf.string,
-                                                                                    default_value=''),
-            'image/class/label': tf.compat.v1.FixedLenFeature([1], dtype=tf.int64,
-                                                                                            default_value=-1),
-            'image/class/text': tf.compat.v1.FixedLenFeature([], dtype=tf.string,
-                                                                                         default_value=''),
+        'image/encoded': tf.compat.v1.FixedLenFeature([], dtype=tf.string,
+                                                      default_value=''),
+        'image/class/label': tf.compat.v1.FixedLenFeature([1], dtype=tf.int64,
+                                                          default_value=-1),
+        'image/class/text': tf.compat.v1.FixedLenFeature([], dtype=tf.string,
+                                                         default_value=''),
     }
     sparse_float32 = tf.compat.v1.VarLenFeature(dtype=tf.float32)
     # Sparse features in Example proto.
     feature_map.update(
-            {k: sparse_float32 for k in ['image/object/bbox/xmin',
-                                                                     'image/object/bbox/ymin',
-                                                                     'image/object/bbox/xmax',
-                                                                     'image/object/bbox/ymax']})
+        {k: sparse_float32 for k in ['image/object/bbox/xmin',
+                                     'image/object/bbox/ymin',
+                                     'image/object/bbox/xmax',
+                                     'image/object/bbox/ymax']})
 
     features = tf.compat.v1.parse_single_example(example_serialized, feature_map)
     label = tf.compat.v1.cast(features['image/class/label'], dtype=tf.int32)
@@ -60,10 +63,10 @@ def parse_example_proto(example_serialized):
     ymin = tf.compat.v1.expand_dims(features['image/object/bbox/ymin'].values, 0)
     xmax = tf.compat.v1.expand_dims(features['image/object/bbox/xmax'].values, 0)
     ymax = tf.compat.v1.expand_dims(features['image/object/bbox/ymax'].values, 0)
-    #print(xmax, xmin, ymax, ymin)
+    # print(xmax, xmin, ymax, ymin)
     # Note that we impose an ordering of (y, x) just to make life difficult.
     bbox = tf.compat.v1.concat([ymin, xmin, ymax, xmax], 0)
-    #print(bbox)
+    # print(bbox)
     # Force the variable number of bounding boxes into the shape
     # [1, num_boxes, coords].
     bbox = tf.expand_dims(bbox, 0)
@@ -72,10 +75,14 @@ def parse_example_proto(example_serialized):
     return features['image/encoded'], label, bbox, features['image/class/text']
 
 
+
 if __name__ == '__main__':
 
     filename = '/home/gary/Documents/processed_data/train-00000-of-01024'
     raw_dataset = tf.data.TFRecordDataset(filename)
     raw_dataset = raw_dataset.map(parse_example_proto)
     for a, b, c, d in raw_dataset:
-        print(c)
+        gg = tf.io.decode_jpeg(a, 3)
+        plt.imshow(gg.numpy())
+        plt.show()
+
