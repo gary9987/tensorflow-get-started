@@ -83,7 +83,7 @@ def eval_preprocessing():
 
 if __name__ == '__main__':
 
-    data_dir = pathlib.Path('./jpg')
+    data_dir = pathlib.Path('../jpg')
 
     image_list = list(data_dir.glob('**/*.jpg'))
     img0 = PIL.Image.open(str(image_list[0]))

@@ -38,16 +38,16 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 
-FLAGS = tf.app.flags.FLAGS
+FLAGS = tf.compat.v1.flags.FLAGS
 
-tf.app.flags.DEFINE_integer('batch_size', 32,
+tf.compat.v1.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
-tf.app.flags.DEFINE_integer('image_size', 299,
+tf.compat.v1.flags.DEFINE_integer('image_size', 299,
                             """Provide square images of this size.""")
-tf.app.flags.DEFINE_integer('num_preprocess_threads', 4,
+tf.compat.v1.flags.DEFINE_integer('num_preprocess_threads', 4,
                             """Number of preprocessing threads per tower. """
                             """Please make this a multiple of 4.""")
-tf.app.flags.DEFINE_integer('num_readers', 4,
+tf.compat.v1.flags.DEFINE_integer('num_readers', 4,
                             """Number of parallel readers during train.""")
 
 # Images are preprocessed asynchronously using multiple threads specified by
@@ -60,7 +60,7 @@ tf.app.flags.DEFINE_integer('num_readers', 4,
 # of 1024*16 images. Assuming RGB 299x299 images, this implies a queue size of
 # 16GB. If the machine is memory limited, then decrease this factor to
 # decrease the CPU memory footprint, accordingly.
-tf.app.flags.DEFINE_integer('input_queue_memory_factor', 16,
+tf.compat.v1.flags.DEFINE_integer('input_queue_memory_factor', 16,
                             """Size of the queue of preprocessed images. """
                             """Default is ideal but try smaller values, e.g. """
                             """4, 2 or 1, if host memory is constrained. See """
@@ -133,7 +133,7 @@ def decode_jpeg(image_buffer, scope=None):
     Returns:
       3-D float Tensor with values ranging from [0, 1).
     """
-    with tf.op_scope([image_buffer], scope, 'decode_jpeg'):
+    with tf.compat.v1.op_scope([image_buffer], scope, 'decode_jpeg'):
         # Decode the string as an RGB JPEG.
         # Note that the resulting image contains an unknown height and width
         # that is set dynamically by decode_jpeg. In other words, the height
@@ -160,7 +160,7 @@ def distort_color(image, thread_id=0, scope=None):
     Returns:
       color-distorted image
     """
-    with tf.op_scope([image], scope, 'distort_color'):
+    with tf.compat.v1.op_scope([image], scope, 'distort_color'):
         color_ordering = thread_id % 2
 
         if color_ordering == 0:
@@ -196,15 +196,15 @@ def distort_image(image, height, width, bbox, thread_id=0, scope=None):
     Returns:
       3-D float Tensor of distorted image used for training.
     """
-    with tf.op_scope([image, height, width, bbox], scope, 'distort_image'):
+    with tf.compat.v1.op_scope([image, height, width, bbox], scope, 'distort_image'):
         # Each bounding box has shape [1, num_boxes, box coords] and
         # the coordinates are ordered [ymin, xmin, ymax, xmax].
 
         # Display the bounding box in the first thread only.
         if not thread_id:
-            image_with_box = tf.image.draw_bounding_boxes(tf.expand_dims(image, 0),
+            image_with_box = tf.compat.v1.image.draw_bounding_boxes(tf.expand_dims(image, 0),
                                                           bbox)
-            tf.image_summary('image_with_bounding_boxes', image_with_box)
+            tf.summary.image('image_with_bounding_boxes', image_with_box)
 
         # A large fraction of image datasets contain a human-annotated bounding
         # box delineating the region of the image containing the object of interest.
@@ -223,9 +223,9 @@ def distort_image(image, height, width, bbox, thread_id=0, scope=None):
             use_image_if_no_bounding_boxes=True)
         bbox_begin, bbox_size, distort_bbox = sample_distorted_bounding_box
         if not thread_id:
-            image_with_distorted_box = tf.image.draw_bounding_boxes(
+            image_with_distorted_box = tf.compat.v1.image.draw_bounding_boxes(
                 tf.expand_dims(image, 0), distort_bbox)
-            tf.image_summary('images_with_distorted_bounding_box',
+            tf.summary.image('images_with_distorted_bounding_box',
                              image_with_distorted_box)
 
         # Crop the image to the specified bounding box.
@@ -236,13 +236,13 @@ def distort_image(image, height, width, bbox, thread_id=0, scope=None):
         # fashion based on the thread number.
         # Note that ResizeMethod contains 4 enumerated resizing methods.
         resize_method = thread_id % 4
-        distorted_image = tf.image.resize_images(distorted_image, [height, width],
+        distorted_image = tf.compat.v1.image.resize_images(distorted_image, [height, width],
                                                  method=resize_method)
         # Restore the shape since the dynamic slice based upon the bbox_size loses
         # the third dimension.
         distorted_image.set_shape([height, width, 3])
         if not thread_id:
-            tf.image_summary('cropped_resized_image',
+            tf.summary.image('cropped_resized_image',
                              tf.expand_dims(distorted_image, 0))
 
         # Randomly flip the image horizontally.
@@ -252,7 +252,7 @@ def distort_image(image, height, width, bbox, thread_id=0, scope=None):
         distorted_image = distort_color(distorted_image, thread_id)
 
         if not thread_id:
-            tf.image_summary('final_distorted_image',
+            tf.summary.image('final_distorted_image',
                              tf.expand_dims(distorted_image, 0))
         return distorted_image
 
@@ -267,14 +267,14 @@ def eval_image(image, height, width, scope=None):
     Returns:
       3-D float Tensor of prepared image.
     """
-    with tf.op_scope([image, height, width], scope, 'eval_image'):
+    with tf.compat.v1.op_scope([image, height, width], scope, 'eval_image'):
         # Crop the central region of the image with an area containing 87.5% of
         # the original image.
         image = tf.image.central_crop(image, central_fraction=0.875)
 
         # Resize the image to the original height and width.
         image = tf.expand_dims(image, 0)
-        image = tf.image.resize_bilinear(image, [height, width],
+        image = tf.compat.v1.image.resize_bilinear(image, [height, width],
                                          align_corners=False)
         image = tf.squeeze(image, [0])
         return image
@@ -294,8 +294,9 @@ def image_preprocessing(image_buffer, bbox, train, thread_id=0):
     Raises:
       ValueError: if user does not provide bounding box
     """
-    if bbox is None:
-        raise ValueError('Please supply a bounding box.')
+    if len(bbox.numpy()[0]) == 0:
+        bbox = tf.constant([0.0, 0.0, 1.0, 1.0], dtype=tf.float32, shape=[1, 1, 4])
+        #raise ValueError('Please supply a bounding box.')
 
     image = decode_jpeg(image_buffer)
     height = FLAGS.image_size
@@ -307,8 +308,8 @@ def image_preprocessing(image_buffer, bbox, train, thread_id=0):
         image = eval_image(image, height, width)
 
     # Finally, rescale to [-1,1] instead of [0, 1)
-    image = tf.sub(image, 0.5)
-    image = tf.mul(image, 2.0)
+    image = tf.math.subtract(image, 0.5)
+    image = tf.math.multiply(image, 2.0)
     return image
 
 

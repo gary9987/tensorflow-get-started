@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import PIL.Image
 from matplotlib import pyplot as plt
-
+from awslabs_image_processing import image_preprocessing
 
 def parse_example_proto(example_serialized):
     """Parses an Example proto containing a training example of an image.
@@ -81,8 +81,12 @@ if __name__ == '__main__':
     filename = '/home/gary/Documents/processed_data/train-00000-of-01024'
     raw_dataset = tf.data.TFRecordDataset(filename)
     raw_dataset = raw_dataset.map(parse_example_proto)
-    for a, b, c, d in raw_dataset:
-        gg = tf.io.decode_jpeg(a, 3)
-        plt.imshow(gg.numpy())
+    for image_str, label, bbox, text in raw_dataset:
+        train_img = image_preprocessing(image_str, bbox, train=True, thread_id=1)
+        plt.imshow(train_img.numpy())
+        plt.show()
+
+        eval_img = image_preprocessing(image_str, bbox, train=False, thread_id=1)
+        plt.imshow(eval_img.numpy())
         plt.show()
 
