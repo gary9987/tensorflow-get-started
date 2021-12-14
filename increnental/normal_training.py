@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import Classifier, CustomModel
+from model import CustomModel, Classifier
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -22,7 +22,6 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False):
 
     # Use buffered prefetching on all datasets.
     return ds.prefetch(buffer_size=AUTOTUNE)
-  
 
 if __name__ == '__main__':
 
@@ -33,7 +32,7 @@ if __name__ == '__main__':
         as_supervised=True,
     )
     num_classes = metadata.features['label'].num_classes
-    #print(num_classes)
+    print(num_classes)
 
 
     data_augmentation = tf.keras.Sequential([
@@ -57,58 +56,19 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    ori_model = CustomModel()
-    model = tf.keras.Sequential()
+    # Create an instance of the model
+    model = tf.keras.Sequential([CustomModel()])
+    model.add(Classifier())
 
-    callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=1, mode='min')
     model.compile(optimizer=optimizer,
               loss=loss_object,
               metrics=['accuracy'])
 
-    epochs = 20
-
-    for ind in range(len(ori_model.layers)):
-
-        if(ori_model.layers[ind].name[0] == 'c'):
-
-            # freeze the pre layer for look-ahead process
-            for i in range(ind):
-              model.layers[i].trainable = False
-              #print(model.layers[i].name + ' False')
-            
-            # Add k+1 sublayer
-            model.add(ori_model.layers[ind])
-            # Add classifier
-            model.add(tf.keras.Sequential([Classifier()]))
-
-            for i in model.layers:
-              print(i.name, 'trainable:', i.trainable)
-
-            model.compile(optimizer=optimizer,
-              loss=loss_object,
-              metrics=['accuracy'])
-            
-            # look-ahead
-            history = model.fit(
-                train_ds,
-                validation_data=val_ds,
-                epochs=1
-            )
-
-            # train
-            for i in range(ind+1):
-              model.layers[i].trainable = True
-              #print(model.layers[i].name + ' True')
-
-            history = model.fit(
-                train_ds,
-                validation_data=val_ds,
-                epochs=epochs,
-                callbacks=[callback]
-            )
-
-            # Pop the classifier
-            if(ind+1 != len(ori_model.layers)):
-              model = tf.keras.models.Sequential(model.layers[:-1])
+    epochs = 10
+    history = model.fit(
+        train_ds,
+        validation_data=val_ds,
+        epochs=epochs
+    )
 
     model.evaluate(test_ds, verbose=2)
