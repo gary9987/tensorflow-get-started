@@ -1,11 +1,4 @@
-from tensorflow.keras import layers
 import tensorflow as tf
-from tensorflow import keras
-
-
-from tensorflow.keras import layers
-import tensorflow as tf
-from tensorflow import keras
 
 class CustomModel(tf.keras.Model):
     def __init__(self):
@@ -20,11 +13,17 @@ class CustomModel(tf.keras.Model):
         x = self.con3(x)
         return x
 
+
 class Classifier(tf.keras.Model):
     def __init__(self):
         super(Classifier, self).__init__()
         self.flt = tf.keras.layers.Flatten()
+        self.drop = tf.keras.layers.Dropout(0.1)
         self.den1 = tf.keras.layers.Dense(10)
 
+
     def call(self, inputs):
-        return self.den1(self.flt(inputs))
+        x = self.flt(inputs)
+        x = self.drop(x)
+        x = self.den1(x)
+        return x
