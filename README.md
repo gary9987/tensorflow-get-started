@@ -77,3 +77,7 @@ with tf.io.TFRecordWriter(tfrecord_file) as writer:
     plt.imshow(image.numpy())
     plt.show()
   ```
+## Model
+- model.summary()
+  - ValueError: This model has not yet been built. Build the model first by calling `build()` or by calling the model on a batch of data.
+    - [Solution](https://blog.csdn.net/qq_41289920/article/details/104737597)

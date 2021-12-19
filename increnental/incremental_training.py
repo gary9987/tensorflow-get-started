@@ -1,14 +1,16 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import CustomModel
+from model import Classifier, CustomModel
+import numpy as np
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
 
+
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False):
     # Resize and rescale all datasets.
-    #ds = ds.map(lambda x, y: (resize_and_rescale(x), y), num_parallel_calls=AUTOTUNE)
+    # ds = ds.map(lambda x, y: (resize_and_rescale(x), y), num_parallel_calls=AUTOTUNE)
 
     if shuffle:
         ds = ds.shuffle(1000)
@@ -33,17 +35,15 @@ if __name__ == '__main__':
         as_supervised=True,
     )
     num_classes = metadata.features['label'].num_classes
-    print(num_classes)
-
 
     data_augmentation = tf.keras.Sequential([
-        layers.Rescaling(1./255),
+        layers.Rescaling(1. / 255),
         layers.RandomRotation(0.2),
         layers.CenterCrop(28, 28)
     ])
 
     valid_augmentation = tf.keras.Sequential([
-        layers.Rescaling(1./255),
+        layers.Rescaling(1. / 255),
         layers.CenterCrop(28, 28)
     ])
 
@@ -57,32 +57,59 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    model = CustomModel()
-    model.build([1, 28, 28, 1])
+    ori_model = CustomModel()
+    # ori_model.build((None, 28, 28, 1))
+    # print(ori_model.summary())
+    model = tf.keras.Sequential()
 
-    for layer in model.layers:
-        if(layer.name[0] == 'c'):
-            layer.trainable = False
-
-    print(model.summary())
-
-    callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
     model.compile(optimizer=optimizer,
-              loss=loss_object,
-              metrics=['accuracy'])
+                  loss=loss_object,
+                  metrics=['accuracy'])
 
-    epochs = 10
+    epochs = 20
+    look_ahead_epochs = 2
+    for ind in range(len(ori_model.layers)):
 
-    for layer in model.layers:
-        if(layer.name[0] == 'c'):
-            layer.trainable = True
-            #print(model.summary())
+        # if (ori_model.layers[ind].name[0] == 'c'):
+        if True:
+            # freeze the pre layer for look-ahead process
+            for i in range(ind):
+                model.layers[i].trainable = False
+                # print(model.layers[i].name + ' False')
+
+            # Add k+1 sublayer
+            model.add(ori_model.layers[ind])
+            # Add classifier
+            model.add(tf.keras.Sequential([Classifier()]))
+
+            for i in model.layers:
+                print(i.name, 'trainable:', i.trainable)
+
+            model.compile(optimizer=optimizer,
+                          loss=loss_object,
+                          metrics=['accuracy'])
+
+            # train a epochs for Look-Ahead phase
+            history = model.fit(
+                train_ds,
+                validation_data=val_ds,
+                epochs=look_ahead_epochs
+            )
+
+            # train
+            for i in range(ind + 1):
+                model.layers[i].trainable = True
+
             history = model.fit(
                 train_ds,
                 validation_data=val_ds,
                 epochs=epochs,
-                callbacks=[callback]
+                callbacks=[early_stopping_callback]
             )
-            layer.trainable = False
+
+            # Pop the classifier
+            if ind + 1 != len(ori_model.layers):
+                model = tf.keras.models.Sequential(model.layers[:-1])
 
     model.evaluate(test_ds, verbose=2)
