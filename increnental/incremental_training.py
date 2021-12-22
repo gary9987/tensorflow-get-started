@@ -57,7 +57,18 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    ori_model = CustomModel()
+    # ori_model = CustomModel()
+    ori_model = tf.keras.applications.InceptionResNetV2(
+        include_top=False,
+        weights=None,
+        input_tensor=None,
+        input_shape=(75, 75, 1),
+        pooling=None,
+    )
+    for ind in range(len(ori_model.layers)):
+        print(ori_model.layers[ind].name)
+
+    print(ori_model.summary())
     # ori_model.build((None, 28, 28, 1))
     # print(ori_model.summary())
     model = tf.keras.Sequential()
