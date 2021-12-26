@@ -54,7 +54,6 @@ def CustomInception():
     return model
 
 
-
 class CustomModel(tf.keras.Model):
     def __init__(self):
         super(CustomModel, self).__init__()

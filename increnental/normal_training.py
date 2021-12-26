@@ -53,7 +53,7 @@ if __name__ == '__main__':
     train_ds = train_ds.cache()
     val_ds = val_ds.cache()
 
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
     # Create an instance of the model
