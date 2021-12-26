@@ -57,14 +57,17 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    # ori_model = CustomModel()
+    ori_model = CustomModel()
+    ori_model.build([None, 28, 28, 1])
+    '''
     ori_model = tf.keras.applications.InceptionResNetV2(
         include_top=False,
         weights=None,
         input_tensor=None,
-        input_shape=(75, 75, 1),
+        input_shape=(28, 28, 1),
         pooling=None,
     )
+    '''
     for ind in range(len(ori_model.layers)):
         print(ori_model.layers[ind].name)
 
@@ -92,7 +95,7 @@ if __name__ == '__main__':
             # Add k+1 sublayer
             model.add(ori_model.layers[ind])
             # Add classifier
-            model.add(tf.keras.Sequential([Classifier()]))
+            model.add(tf.keras.Sequential([Classifier(10)]))
 
             for i in model.layers:
                 print(i.name, 'trainable:', i.trainable)

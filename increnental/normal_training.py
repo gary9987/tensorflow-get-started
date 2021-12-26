@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import CustomModel, Classifier, InceptionV1
+from model import CustomModel, Classifier, CustomInception
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -23,6 +23,7 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False):
     # Use buffered prefetching on all datasets.
     return ds.prefetch(buffer_size=AUTOTUNE)
 
+
 if __name__ == '__main__':
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
@@ -33,7 +34,6 @@ if __name__ == '__main__':
     )
     num_classes = metadata.features['label'].num_classes
     print(num_classes)
-
 
     data_augmentation = tf.keras.Sequential([
         layers.Rescaling(1./255),
@@ -53,24 +53,28 @@ if __name__ == '__main__':
     train_ds = train_ds.cache()
     val_ds = val_ds.cache()
 
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
     optimizer = tf.keras.optimizers.Adam()
 
     # Create an instance of the model
-    #model = tf.keras.Sequential([CustomModel()])
-    model = InceptionV1(28, 28, 1, 10)
-    model.summary()
-    #model.add(Classifier())
+    model = tf.keras.Sequential([CustomModel()])
+    model.add(Classifier(10))
+    #model = CustomInception()
+
+    #model.build([None, 28, 28, 1])
+    #model.summary()
 
     model.compile(optimizer=optimizer,
               loss=loss_object,
               metrics=['accuracy'])
 
     epochs = 10
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, mode='min')
     history = model.fit(
         train_ds,
         validation_data=val_ds,
-        epochs=epochs
+        epochs=epochs,
+        callbacks=[early_stopping_callback]
     )
 
     model.evaluate(test_ds, verbose=2)
