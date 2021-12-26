@@ -1,10 +1,11 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import CustomModel, Classifier, CustomInception
+from model import CustomModel, Classifier, CustomInceptionModel
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
+
 
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False):
     # Resize and rescale all datasets.
@@ -57,12 +58,10 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam()
 
     # Create an instance of the model
-    model = tf.keras.Sequential([CustomModel()])
+    model = CustomInceptionModel()
     model.add(Classifier(10))
-    #model = CustomInception()
-
-    #model.build([None, 28, 28, 1])
-    #model.summary()
+    model.build([None, 28, 28, 1])
+    model.summary()
 
     model.compile(optimizer=optimizer,
               loss=loss_object,

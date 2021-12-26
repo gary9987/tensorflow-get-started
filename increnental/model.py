@@ -28,29 +28,15 @@ class InceptionBlock(tf.keras.Model):
         return tf.keras.layers.concatenate([b1, b2, b3, b4], axis=3)
 
 
-def CustomInception():
+def CustomInceptionModel():
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Conv2D(64, (7, 7), padding='same', strides=(2, 2), activation='relu'))
-    model.add(tf.keras.layers.BatchNormalization(axis=3))
-    model.add(tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same'))
     model.add(tf.keras.layers.Conv2D(192, (3, 3), padding='same', strides=(1, 1), activation='relu'))
     model.add(tf.keras.layers.BatchNormalization(axis=3))
     model.add(tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same'))
     model.add(InceptionBlock([(64,), (96, 128), (16, 32), (32,)]))
     model.add(InceptionBlock([(128,), (128, 192), (32, 96), (64,)]))
-    model.add(tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same'))
+    model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
 
-    model.add(InceptionBlock([(192,), (96, 208), (16, 48), (64,)]))
-    model.add(InceptionBlock([(160,), (112, 224), (24, 64), (64,)]))
-    model.add(InceptionBlock([(128,), (128, 256), (24, 64), (64,)]))
-    model.add(InceptionBlock([(112,), (144, 288), (32, 64), (64,)]))
-    model.add(InceptionBlock([(256,), (160, 320), (32, 128), (128,)]))
-    model.add(tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same'))
-
-    model.add(InceptionBlock([(256,), (160, 320), (32, 128), (128,)]))
-    model.add(InceptionBlock([(384,), (192, 384), (48, 128), (128,)]))
-
-    model.add(Classifier(10))
     return model
 
 

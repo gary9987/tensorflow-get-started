@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import Classifier, CustomModel
+from model import Classifier, CustomModel, CustomInceptionModel
 import numpy as np
 
 batch_size = 128
@@ -57,23 +57,14 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    ori_model = CustomModel()
+    ori_model = CustomInceptionModel()
     ori_model.build([None, 28, 28, 1])
-    '''
-    ori_model = tf.keras.applications.InceptionResNetV2(
-        include_top=False,
-        weights=None,
-        input_tensor=None,
-        input_shape=(28, 28, 1),
-        pooling=None,
-    )
-    '''
-    for ind in range(len(ori_model.layers)):
-        print(ori_model.layers[ind].name)
+
+    for layer_no in range(len(ori_model.layers)):
+        print(ori_model.layers[layer_no].name)
 
     print(ori_model.summary())
-    # ori_model.build((None, 28, 28, 1))
-    # print(ori_model.summary())
+
     model = tf.keras.Sequential()
 
     early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
@@ -82,18 +73,26 @@ if __name__ == '__main__':
                   metrics=['accuracy'])
 
     epochs = 20
-    look_ahead_epochs = 2
-    for ind in range(len(ori_model.layers)):
-
+    look_ahead_epochs = 1
+    # layer_no start from 0 which is the first layer
+    layer_no = 0
+    while layer_no < len(ori_model.layers):
+        print(layer_no)
         # if (ori_model.layers[ind].name[0] == 'c'):
         if True:
             # freeze the pre layer for look-ahead process
-            for i in range(ind):
+            for i in range(layer_no):
                 model.layers[i].trainable = False
                 # print(model.layers[i].name + ' False')
 
             # Add k+1 sublayer
-            model.add(ori_model.layers[ind])
+            model.add(ori_model.layers[layer_no])
+            # Skip when meet a pooling layer
+            while layer_no + 1 < len(ori_model.layers) and 'pool' in ori_model.layers[layer_no + 1].name:
+                print('Pooling layer is not trainable.')
+                layer_no += 1
+                model.add(ori_model.layers[layer_no])
+
             # Add classifier
             model.add(tf.keras.Sequential([Classifier(10)]))
 
@@ -112,7 +111,7 @@ if __name__ == '__main__':
             )
 
             # train
-            for i in range(ind + 1):
+            for i in range(layer_no + 1):
                 model.layers[i].trainable = True
 
             history = model.fit(
@@ -121,9 +120,11 @@ if __name__ == '__main__':
                 epochs=epochs,
                 callbacks=[early_stopping_callback]
             )
-
+            print(model.summary())
             # Pop the classifier
-            if ind + 1 != len(ori_model.layers):
+            if layer_no + 1 != len(ori_model.layers):
                 model = tf.keras.models.Sequential(model.layers[:-1])
+
+            layer_no += 1
 
     model.evaluate(test_ds, verbose=2)
