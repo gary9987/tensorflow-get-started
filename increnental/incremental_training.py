@@ -76,6 +76,7 @@ if __name__ == '__main__':
     look_ahead_epochs = 1
     # layer_no start from 0 which is the first layer
     layer_no = 0
+
     while layer_no < len(ori_model.layers):
         print(layer_no)
         # if (ori_model.layers[ind].name[0] == 'c'):
@@ -88,8 +89,9 @@ if __name__ == '__main__':
             # Add k+1 sublayer
             model.add(ori_model.layers[layer_no])
             # Skip when meet a pooling layer
-            while layer_no + 1 < len(ori_model.layers) and 'pool' in ori_model.layers[layer_no + 1].name:
-                print('Pooling layer is not trainable.')
+            while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
+                                                            'drop' in ori_model.layers[layer_no + 1].name):
+                print('Pooling or Dropout layer is not trainable.')
                 layer_no += 1
                 model.add(ori_model.layers[layer_no])
 

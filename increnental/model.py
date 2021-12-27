@@ -24,7 +24,6 @@ class InceptionBlock(tf.keras.Model):
         b3 = self.branch5x5_2(b3)
         b4 = self.branchpool_1(inputs)
         b4 = self.branchpool_2(b4)
-
         return tf.keras.layers.concatenate([b1, b2, b3, b4], axis=3)
 
 
@@ -36,7 +35,9 @@ def CustomInceptionModel():
     model.add(InceptionBlock([(64,), (96, 128), (16, 32), (32,)]))
     model.add(InceptionBlock([(128,), (128, 192), (32, 96), (64,)]))
     model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
-
+    """
+    [[b1], [b2], [b3]]
+    """
     return model
 
 
