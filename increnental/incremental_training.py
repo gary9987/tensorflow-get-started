@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import Classifier, CustomModel, CustomInceptionModel
+from model import Classifier, CustomModel, CustomInceptionModel, CustomInceptionModel_test
 import numpy as np
 
 batch_size = 128
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    ori_model = CustomInceptionModel()
+    ori_model = CustomInceptionModel_test()
     ori_model.build([None, 28, 28, 1])
 
     for layer_no in range(len(ori_model.layers)):

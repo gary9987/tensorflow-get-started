@@ -1,5 +1,45 @@
 import tensorflow as tf
 
+class CustomBranch(tf.keras.Model):
+    def __init__(self, branch_par = [['Conv2D 64 1'], ['Conv2D 96 1', 'Conv2d 128 3']]):
+        super(CustomBranch, self).__init__()
+
+        self.branch_list = []
+
+        for branch in branch_par:
+
+            a_branch = []
+
+            for layer in branch:
+                layer_type, filters, kernal_size = layer.split()
+                filters = int(filters)
+                kernal_size = (int(kernal_size), int(kernal_size))
+                if layer_type == 'Conv2D':
+                    a_branch.append(tf.keras.layers.Conv2D(filters, kernal_size, padding='same', strides=(1, 1)))
+
+            self.branch_list.append(a_branch)
+
+
+        '''
+        self.branch1x1 = tf.keras.layers.Conv2D(branch1[0], (1, 1), padding='same', strides=(1, 1), name=None)
+        self.branchpool_1 = tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(1, 1), padding='same')
+        self.branchpool_2 = tf.keras.layers.Conv2D(branch4[0], (1, 1), padding='same', strides=(1, 1), name=None)
+        '''
+
+    def call(self, inputs):
+        '''
+        b1 = self.branchpool_1(inputs)
+        b2 = self.branch3x3_1(inputs)
+        b2 = self.branch3x3_2(b2)
+        b3 = self.branch5x5_1(inputs)
+        b3 = self.branch5x5_2(b3)
+        b4 = self.branchpool_1(inputs)
+        b4 = self.branchpool_2(b4)
+
+        return tf.keras.layers.concatenate([b1, b2, b3, b4], axis=3)
+        '''
+        return True
+
 
 class InceptionBlock(tf.keras.Model):
     def __init__(self, nb_filter_para):
@@ -25,6 +65,12 @@ class InceptionBlock(tf.keras.Model):
         b4 = self.branchpool_1(inputs)
         b4 = self.branchpool_2(b4)
         return tf.keras.layers.concatenate([b1, b2, b3, b4], axis=3)
+
+
+def CustomInceptionModel_test():
+    model = tf.keras.Sequential()
+    model.add(CustomBranch())
+    return model
 
 
 def CustomInceptionModel():
