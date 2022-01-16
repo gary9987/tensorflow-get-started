@@ -1,5 +1,54 @@
 import tensorflow as tf
 
+class CustomBranch(tf.keras.Model):
+    """
+    Conv2D: ['Conv2D filter kernel_size']
+    MaxPooling2D: ['MaxPooling2D pool_size']
+    """
+    def __init__(self, branch_par=[['Conv2D 64 1'], ['Conv2D 96 1', 'Conv2D 128 3'], ['Conv2D 16 1', 'Conv2D 32 5'], ['MaxPooling2D 3', 'Conv2D 32 1']]):
+        super(CustomBranch, self).__init__()
+
+        self.branch_list = []
+
+        for branch in branch_par:
+
+            a_branch = []
+
+            for layer in branch:
+                layers = layer.split()
+                if layers[0] == 'Conv2D':
+                    filters = int(layers[1])
+                    kernal_size = (int(layers[2]), int(layers[2]))
+                    a_branch.append(tf.keras.layers.Conv2D(filters, kernal_size, padding='same', strides=(1, 1), name=None))
+                elif layers[0] == 'MaxPooling2D':
+                    pool_size = int(layers[1])
+                    a_branch.append(tf.keras.layers.MaxPooling2D(pool_size, strides=(1, 1), padding='same'))
+                else:
+                    print('Error, the layer ', layers[0], 'type not defined.')
+                    exit()
+
+            self.branch_list.append(a_branch)
+
+
+        '''
+        self.branch1x1 = tf.keras.layers.Conv2D(branch1[0], (1, 1), padding='same', strides=(1, 1), name=None)
+        self.branchpool_1 = tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(1, 1), padding='same')
+        self.branchpool_2 = tf.keras.layers.Conv2D(branch4[0], (1, 1), padding='same', strides=(1, 1), name=None)
+        '''
+
+    def call(self, inputs):
+        outputs = []
+        for branch in self.branch_list:
+            x = 0
+            for i in range(len(branch)):
+                if i == 0:
+                    x = branch[i](inputs)
+                else:
+                    x = branch[i](x)
+            outputs.append(x)
+
+        return tf.keras.layers.concatenate(outputs, axis=3)
+
 
 class InceptionBlock(tf.keras.Model):
     def __init__(self, nb_filter_para):
@@ -17,7 +66,7 @@ class InceptionBlock(tf.keras.Model):
         self.branchpool_2 = tf.keras.layers.Conv2D(branch4[0], (1, 1), padding='same', strides=(1, 1), name=None)
 
     def call(self, inputs):
-        b1 = self.branchpool_1(inputs)
+        b1 = self.branch1x1(inputs)
         b2 = self.branch3x3_1(inputs)
         b2 = self.branch3x3_2(b2)
         b3 = self.branch5x5_1(inputs)
@@ -27,7 +76,7 @@ class InceptionBlock(tf.keras.Model):
         return tf.keras.layers.concatenate([b1, b2, b3, b4], axis=3)
 
 
-def CustomInceptionModel():
+def CustomInceptionModel_Test():
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Conv2D(192, (3, 3), padding='same', strides=(1, 1), activation='relu'))
     model.add(tf.keras.layers.BatchNormalization(axis=3))
@@ -35,9 +84,19 @@ def CustomInceptionModel():
     model.add(InceptionBlock([(64,), (96, 128), (16, 32), (32,)]))
     model.add(InceptionBlock([(128,), (128, 192), (32, 96), (64,)]))
     model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
-    """
-    [[b1], [b2], [b3]]
-    """
+    return model
+
+
+def CustomInceptionModel():
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.Conv2D(192, (3, 3), padding='same', strides=(1, 1), activation='relu'))
+    model.add(tf.keras.layers.BatchNormalization(axis=3))
+    model.add(tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same'))
+    model.add(CustomBranch(branch_par=[['Conv2D 64 1'], ['Conv2D 96 1', 'Conv2D 128 3'], ['Conv2D 16 1', 'Conv2D 32 5'],
+                                       ['MaxPooling2D 3', 'Conv2D 32 1']]))
+    model.add(CustomBranch(branch_par=[['Conv2D 128 1'], ['Conv2D 128 1', 'Conv2D 192 3'], ['Conv2D 32 1', 'Conv2D 96 5'],
+                                       ['MaxPooling2D 3', 'Conv2D 64 1']]))
+    model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
     return model
 
 
