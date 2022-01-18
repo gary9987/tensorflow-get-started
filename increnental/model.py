@@ -2,10 +2,12 @@ import tensorflow as tf
 
 class CustomBranch(tf.keras.Model):
     """
-    Conv2D: ['Conv2D filter kernel_size']
-    MaxPooling2D: ['MaxPooling2D pool_size']
+    Conv2D: ['Conv2D filter kernel_size'] TODO: kernel padding strides
+    MaxPooling2D: ['MaxPooling2D pool_size'] TODO: stride padding
+    TODO: AvgPooling
+    TODO: Residual block
     """
-    def __init__(self, branch_par=[['Conv2D 64 1'], ['Conv2D 96 1', 'Conv2D 128 3'], ['Conv2D 16 1', 'Conv2D 32 5'], ['MaxPooling2D 3', 'Conv2D 32 1']]):
+    def __init__(self, branch_par=[['Conv2D 64 1'], ['Conv2D 96 1', 'start1','Conv2D 128 3', 'end1'], ['Conv2D 16 1', 'Conv2D 32 5'], ['MaxPooling2D 3', 'Conv2D 32 1']]):
         super(CustomBranch, self).__init__()
 
         self.branch_list = []
