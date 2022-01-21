@@ -89,10 +89,10 @@ if __name__ == '__main__':
             # Add k+1 sublayer
             model.add(ori_model.layers[layer_no])
             # Skip when meet a pooling layer
-            # TODO activation function
             while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
-                                                            'drop' in ori_model.layers[layer_no + 1].name):
-                print('Pooling or Dropout layer is not trainable.')
+                                                            'drop' in ori_model.layers[layer_no + 1].name or
+                                                            'activation' in ori_model.layers[layer_no + 1].name):
+                print(ori_model.layers[layer_no + 1].name, ' layer is not trainable so it will be added')
                 layer_no += 1
                 model.add(ori_model.layers[layer_no])
 
