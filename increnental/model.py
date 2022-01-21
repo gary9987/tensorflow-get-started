@@ -3,8 +3,8 @@ import tensorflow as tf
 class CustomBranch(tf.keras.Model):
     """
     Conv2D: ['Conv2D filter kernel_x kernel_y padding stride_x stride_y']
-    MaxPooling2D: ['MaxPooling2D pool_size padding stride_x stride_y']
-    TODO: AvgPooling
+    MaxPooling2D: ['MaxPooling2D pool_x pool_y padding stride_x stride_y']
+    AveragePooling2D: ['AveragePooling2D pool_x pool_y padding stride_x stride_y']
     TODO: Residual block
     """
     def __init__(self, branch_par=None):
@@ -12,7 +12,7 @@ class CustomBranch(tf.keras.Model):
 
         if branch_par is None:
             branch_par = [['Conv2D 64 3 3 same 1 1'], ['Conv2D 96 1 1 same 1 1', 'Conv2D 128 3 3 same 1 1'],
-                          ['Conv2D 16 1 1 same 1 1', 'Conv2D 32 5 5 same 1 1'], ['MaxPooling2D 3 same 1 1', 'Conv2D 32 1 1 same 1 1']]
+                          ['Conv2D 16 1 1 same 1 1', 'Conv2D 32 5 5 same 1 1'], ['AveragePooling2D 3 3 same 1 1', 'Conv2D 32 1 1 same 1 1']]
 
         self.branch_list = []
 
@@ -29,8 +29,15 @@ class CustomBranch(tf.keras.Model):
                     stride = (int(layers[5]), int(layers[6]))
                     a_branch.append(tf.keras.layers.Conv2D(filters, kernal_size, padding=padding, strides=stride, name=None))
                 elif layers[0] == 'MaxPooling2D':
-                    pool_size = int(layers[1])
-                    a_branch.append(tf.keras.layers.MaxPooling2D(pool_size, strides=(1, 1), padding='same'))
+                    pool_size = (int(layers[1]), int(layers[2]))
+                    padding = layers[3]
+                    stride = (int(layers[4]), int(layers[5]))
+                    a_branch.append(tf.keras.layers.MaxPooling2D(pool_size, strides=stride, padding=padding))
+                elif layers[0] == 'AveragePooling2D':
+                    pool_size = (int(layers[1]), int(layers[2]))
+                    padding = layers[3]
+                    stride = (int(layers[4]), int(layers[5]))
+                    a_branch.append(tf.keras.layers.AveragePooling2D(pool_size, strides=stride, padding=padding))
                 else:
                     print('Error, the layer ', layers[0], 'type not defined.')
                     exit()
