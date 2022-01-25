@@ -1,4 +1,75 @@
+import keras
 import tensorflow as tf
+from tensorflow.keras import layers
+
+
+class ResBlockProjection(layers.Layer):
+    """
+    The number of the input's filters is no need to be the same of the filter_nums.
+    Conv1x1 projection layer will project the input to the dimension of filter_nums.
+    """
+    def __init__(self, filter_nums, strides=1):
+        super(ResBlockProjection, self).__init__()
+
+        self.conv_1 = layers.Conv2D(filter_nums, (3, 3), strides=strides, padding='same')
+        self.bn_1 = layers.BatchNormalization()
+        self.act_relu = layers.Activation('relu')
+
+        self.conv_2 = layers.Conv2D(filter_nums, (3, 3), strides=1, padding='same')
+        self.bn_2 = layers.BatchNormalization()
+
+        self.block = tf.keras.Model.Sequential()
+        self.block.add(layers.Conv2D(filter_nums, (1, 1), strides=strides))
+
+    def call(self, inputs, training=None):
+
+        x = self.conv_1(inputs)
+        x = self.bn_1(x, training=training)
+        x = self.act_relu(x)
+        x = self.conv_2(x)
+        x = self.bn_2(x, training=training)
+
+        identity = self.block(inputs)
+        outputs = layers.add([x, identity])
+        outputs = tf.nn.relu(outputs)
+
+        return outputs
+
+class ResBlockIdentity(layers.Layer):
+    """
+    The number of the input's filters must need to be the same of the filter_nums.
+    If the stride is not equal to 1, then it will need a Con1x1 layer with given stride to project the input.
+    """
+    def __init__(self, filter_nums, strides=1):
+        super(ResBlockIdentity, self).__init__()
+
+        self.conv_1 = layers.Conv2D(filter_nums, (3, 3), strides=strides, padding='same')
+        self.bn_1 = layers.BatchNormalization()
+        self.act_relu = layers.Activation('relu')
+
+        self.conv_2 = layers.Conv2D(filter_nums, (3, 3), strides=1, padding='same')
+        self.bn_2 = layers.BatchNormalization()
+
+        if strides != 1:
+            self.block = tf.keras.Model.Sequential()
+            self.block.add(layers.Conv2D(filter_nums, (1, 1), strides=strides))
+        else:
+            self.block = lambda x: x
+
+    def call(self, inputs, training=None):
+
+        x = self.conv_1(inputs)
+        x = self.bn_1(x, training=training)
+        x = self.act_relu(x)
+        x = self.conv_2(x)
+        x = self.bn_2(x, training=training)
+
+        identity = self.block(inputs)
+        outputs = layers.add([x, identity])
+        outputs = tf.nn.relu(outputs)
+
+        return outputs
+
 
 class CustomBranch(tf.keras.Model):
     """
@@ -64,7 +135,7 @@ class CustomBranch(tf.keras.Model):
 
         return tf.keras.layers.concatenate(outputs, axis=3)
 
-
+'''
 class InceptionBlock(tf.keras.Model):
     def __init__(self, nb_filter_para):
         super(InceptionBlock, self).__init__()
@@ -100,7 +171,7 @@ def CustomInceptionModel_Test():
     model.add(InceptionBlock([(128,), (128, 192), (32, 96), (64,)]))
     model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
     return model
-
+'''
 
 def CustomInceptionModel():
     model = tf.keras.Sequential()
@@ -112,7 +183,7 @@ def CustomInceptionModel():
     model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
     return model
 
-
+'''
 class CustomModel(tf.keras.Model):
     def __init__(self):
         super(CustomModel, self).__init__()
@@ -125,7 +196,7 @@ class CustomModel(tf.keras.Model):
         x = self.con2(x)
         x = self.con3(x)
         return x
-
+'''
 
 class Classifier(tf.keras.Model):
     def __init__(self, classes):
