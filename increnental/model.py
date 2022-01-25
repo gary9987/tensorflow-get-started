@@ -107,7 +107,7 @@ def CustomInceptionModel():
     model.add(tf.keras.layers.Conv2D(192, (3, 3), padding='same', strides=(1, 1), activation='relu'))
     model.add(tf.keras.layers.BatchNormalization(axis=3))
     model.add(tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2), padding='same'))
-    #model.add(CustomBranch())
+    model.add(CustomBranch())
     model.add(tf.keras.layers.Activation('relu'))
     model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
     return model

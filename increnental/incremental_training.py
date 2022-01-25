@@ -3,6 +3,7 @@ import tensorflow_datasets as tfds
 from tensorflow.keras import layers
 from model import Classifier, CustomModel, CustomInceptionModel, CustomInceptionModel_Test, InceptionBlock, CustomBranch
 import numpy as np
+from keras.callbacks import CSVLogger
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -67,6 +68,10 @@ if __name__ == '__main__':
 
     model = tf.keras.Sequential()
 
+    from pathlib import Path
+    Path("./log").mkdir(parents=True, exist_ok=True)
+    csv_logger_callback = CSVLogger('./log/log.csv', append=True, separator=',')
+
     early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
     model.compile(optimizer=optimizer,
                   loss=loss_object,
@@ -121,7 +126,7 @@ if __name__ == '__main__':
                 train_ds,
                 validation_data=val_ds,
                 epochs=epochs,
-                callbacks=[early_stopping_callback]
+                callbacks=[early_stopping_callback, csv_logger_callback]
             )
             print(model.summary())
             # Pop the classifier
