@@ -3,13 +3,16 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 
-class ResBlockProjection(layers.Layer):
+class ResBlock(layers.Layer):
     """
-    The number of the input's filters is no need to be the same of the filter_nums.
-    Conv1x1 projection layer will project the input to the dimension of filter_nums.
+    If the stride is not equal to 1 or the filters of the input is not equal to given filter_nums, then it will need a
+    Con1x1 layer with given stride to project the input.
     """
-    def __init__(self, filter_nums, strides=1):
-        super(ResBlockProjection, self).__init__()
+    def __init__(self, filter_nums, strides=(1, 1)):
+        super(ResBlock, self).__init__()
+        self.filter_nums = filter_nums
+        self.strides = strides
+        self.is_con1x1_build = False
 
         self.conv_1 = layers.Conv2D(filter_nums, (3, 3), strides=strides, padding='same')
         self.bn_1 = layers.BatchNormalization()
@@ -18,56 +21,31 @@ class ResBlockProjection(layers.Layer):
         self.conv_2 = layers.Conv2D(filter_nums, (3, 3), strides=1, padding='same')
         self.bn_2 = layers.BatchNormalization()
 
-        self.block = tf.keras.Model.Sequential()
-        self.block.add(layers.Conv2D(filter_nums, (1, 1), strides=strides))
+        self.identity_block = lambda x: x
 
-    def call(self, inputs, training=None):
-
-        x = self.conv_1(inputs)
-        x = self.bn_1(x, training=training)
-        x = self.act_relu(x)
-        x = self.conv_2(x)
-        x = self.bn_2(x, training=training)
-
-        identity = self.block(inputs)
-        outputs = layers.add([x, identity])
-        outputs = tf.nn.relu(outputs)
-
-        return outputs
-
-class ResBlockIdentity(layers.Layer):
-    """
-    The number of the input's filters must need to be the same of the filter_nums.
-    If the stride is not equal to 1, then it will need a Con1x1 layer with given stride to project the input.
-    """
-    def __init__(self, filter_nums, strides=1):
-        super(ResBlockIdentity, self).__init__()
-
-        self.conv_1 = layers.Conv2D(filter_nums, (3, 3), strides=strides, padding='same')
-        self.bn_1 = layers.BatchNormalization()
-        self.act_relu = layers.Activation('relu')
-
-        self.conv_2 = layers.Conv2D(filter_nums, (3, 3), strides=1, padding='same')
-        self.bn_2 = layers.BatchNormalization()
-
-        if strides != 1:
-            self.block = tf.keras.Model.Sequential()
-            self.block.add(layers.Conv2D(filter_nums, (1, 1), strides=strides))
-        else:
-            self.block = lambda x: x
-
-    def call(self, inputs, training=None):
+    def call(self, inputs):
+        #print(inputs.shape)
 
         x = self.conv_1(inputs)
-        x = self.bn_1(x, training=training)
+        x = self.bn_1(x)
         x = self.act_relu(x)
         x = self.conv_2(x)
-        x = self.bn_2(x, training=training)
+        x = self.bn_2(x)
 
-        identity = self.block(inputs)
-        outputs = layers.add([x, identity])
+        """
+        The identity_block will change to Conv1x1 while the stride != 1 or input filter != given filter_nums.
+        """
+        if inputs.shape[3] != self.filter_nums or self.strides != (1, 1):
+            # If the identity block haven't been changed.
+            if not self.is_con1x1_build:
+                self.identity_block = tf.keras.Sequential()
+                self.identity_block.add(layers.Conv2D(self.filter_nums, (1, 1), strides=self.strides))
+                self.is_con1x1_build = True
+
+        short_cut = self.identity_block(inputs)
+
+        outputs = layers.add([x, short_cut])
         outputs = tf.nn.relu(outputs)
-
         return outputs
 
 
@@ -183,20 +161,22 @@ def CustomInceptionModel():
     model.add(tf.keras.layers.AveragePooling2D(pool_size=(7, 7), strides=(2, 2), padding='same'))
     return model
 
-'''
-class CustomModel(tf.keras.Model):
+
+class CustomModelForTest(tf.keras.Model):
     def __init__(self):
-        super(CustomModel, self).__init__()
+        super(CustomModelForTest, self).__init__()
         self.con1 = tf.keras.layers.Conv2D(8, 3, activation='relu')
         self.con2 = tf.keras.layers.Conv2D(16, 3, activation='relu')
         self.con3 = tf.keras.layers.Conv2D(32, 3, activation='relu')
+        self.res = ResBlock(32, strides=(2, 2))
 
     def call(self, inputs):
         x = self.con1(inputs)
         x = self.con2(x)
         x = self.con3(x)
+        x = self.res(x)
         return x
-'''
+
 
 class Classifier(tf.keras.Model):
     def __init__(self, classes):
