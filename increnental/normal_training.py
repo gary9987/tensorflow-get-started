@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import CustomModelForTest, Classifier
+from model import CustomModelForTest, Classifier, CustomInceptionModel
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
     # Create an instance of the model
     model = tf.keras.Sequential()
-    model.add(CustomModelForTest())
+    model.add(CustomInceptionModel())
     model.add(Classifier(10))
     model.build([None, 28, 28, 1])
     model.summary()

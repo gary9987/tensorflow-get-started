@@ -8,23 +8,22 @@ class ResBlock(layers.Layer):
     If the stride is not equal to 1 or the filters of the input is not equal to given filter_nums, then it will need a
     Con1x1 layer with given stride to project the input.
     """
-    def __init__(self, filter_nums, strides=(1, 1)):
+    def __init__(self, filters, strides=(1, 1)):
         super(ResBlock, self).__init__()
-        self.filter_nums = filter_nums
+        self.filters = filters
         self.strides = strides
         self.is_con1x1_build = False
 
-        self.conv_1 = layers.Conv2D(filter_nums, (3, 3), strides=strides, padding='same')
+        self.conv_1 = layers.Conv2D(filters, (3, 3), strides=strides, padding='same')
         self.bn_1 = layers.BatchNormalization()
         self.act_relu = layers.Activation('relu')
 
-        self.conv_2 = layers.Conv2D(filter_nums, (3, 3), strides=1, padding='same')
+        self.conv_2 = layers.Conv2D(filters, (3, 3), strides=1, padding='same')
         self.bn_2 = layers.BatchNormalization()
 
         self.identity_block = lambda x: x
 
     def call(self, inputs):
-        #print(inputs.shape)
 
         x = self.conv_1(inputs)
         x = self.bn_1(x)
@@ -35,11 +34,11 @@ class ResBlock(layers.Layer):
         """
         The identity_block will change to Conv1x1 while the stride != 1 or input filter != given filter_nums.
         """
-        if inputs.shape[3] != self.filter_nums or self.strides != (1, 1):
+        if inputs.shape[3] != self.filters or self.strides != (1, 1):
             # If the identity block haven't been changed.
             if not self.is_con1x1_build:
                 self.identity_block = tf.keras.Sequential()
-                self.identity_block.add(layers.Conv2D(self.filter_nums, (1, 1), strides=self.strides))
+                self.identity_block.add(layers.Conv2D(self.filters, (1, 1), strides=self.strides))
                 self.is_con1x1_build = True
 
         short_cut = self.identity_block(inputs)
@@ -54,13 +53,13 @@ class CustomBranch(tf.keras.Model):
     Conv2D: ['Conv2D filter kernel_x kernel_y padding stride_x stride_y']
     MaxPooling2D: ['MaxPooling2D pool_x pool_y padding stride_x stride_y']
     AveragePooling2D: ['AveragePooling2D pool_x pool_y padding stride_x stride_y']
-    TODO: Residual block
+    ResBlock: ['ResBlock filter stride_x stride_y']
     """
     def __init__(self, branch_par=None):
         super(CustomBranch, self).__init__()
 
         if branch_par is None:
-            branch_par = [['Conv2D 64 3 3 same 1 1'], ['Conv2D 96 1 1 same 1 1', 'Conv2D 128 3 3 same 1 1'],
+            branch_par = [['Conv2D 64 3 3 same 1 1', 'ResBlock 64 1 1'], ['Conv2D 96 1 1 same 1 1', 'Conv2D 128 3 3 same 1 1'],
                           ['Conv2D 16 1 1 same 1 1', 'Conv2D 32 5 5 same 1 1'], ['AveragePooling2D 3 3 same 1 1', 'Conv2D 32 1 1 same 1 1']]
 
         self.branch_list = []
@@ -73,10 +72,10 @@ class CustomBranch(tf.keras.Model):
                 layers = layer.split()
                 if layers[0] == 'Conv2D':
                     filters = int(layers[1])
-                    kernal_size = (int(layers[2]), int(layers[3]))
+                    kernel = (int(layers[2]), int(layers[3]))
                     padding = layers[4]
                     stride = (int(layers[5]), int(layers[6]))
-                    a_branch.append(tf.keras.layers.Conv2D(filters, kernal_size, padding=padding, strides=stride, name=None))
+                    a_branch.append(tf.keras.layers.Conv2D(filters, kernel, padding=padding, strides=stride, name=None))
                 elif layers[0] == 'MaxPooling2D':
                     pool_size = (int(layers[1]), int(layers[2]))
                     padding = layers[3]
@@ -87,6 +86,10 @@ class CustomBranch(tf.keras.Model):
                     padding = layers[3]
                     stride = (int(layers[4]), int(layers[5]))
                     a_branch.append(tf.keras.layers.AveragePooling2D(pool_size, strides=stride, padding=padding))
+                elif layers[0] == 'ResBlock':
+                    filters = int(layers[1])
+                    stride = (int(layers[2]), int(layers[3]))
+                    a_branch.append(ResBlock(filters, strides=stride))
                 else:
                     print('Error, the layer ', layers[0], 'type not defined.')
                     exit()

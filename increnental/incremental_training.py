@@ -58,8 +58,8 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    #ori_model = CustomInceptionModel()
-    ori_model = CustomModelForTest()
+    ori_model = CustomInceptionModel()
+    #ori_model = CustomModelForTest()
     ori_model.build([None, 28, 28, 1])
 
     for layer_no in range(len(ori_model.layers)):
