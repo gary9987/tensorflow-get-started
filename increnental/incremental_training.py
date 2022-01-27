@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import Classifier, CustomModel, CustomInceptionModel, CustomInceptionModel_Test, InceptionBlock, CustomBranch
+from model import Classifier, CustomModelForTest, CustomInceptionModel, CustomBranch
 import numpy as np
 from keras.callbacks import CSVLogger
 
@@ -59,6 +59,7 @@ if __name__ == '__main__':
     optimizer = tf.keras.optimizers.Adam()
 
     ori_model = CustomInceptionModel()
+    #ori_model = CustomModelForTest()
     ori_model.build([None, 28, 28, 1])
 
     for layer_no in range(len(ori_model.layers)):
