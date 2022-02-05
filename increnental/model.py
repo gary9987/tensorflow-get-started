@@ -54,6 +54,7 @@ class CustomBranch(tf.keras.Model):
     MaxPooling2D: ['MaxPooling2D pool_x pool_y padding stride_x stride_y']
     AveragePooling2D: ['AveragePooling2D pool_x pool_y padding stride_x stride_y']
     ResBlock: ['ResBlock filter stride_x stride_y']
+    Activation: ['Activation (name)'] ((name) can be 'relu', 'sigmoid', 'tanh', 'softmax', ...])
     """
     def __init__(self, branch_par=None):
         super(CustomBranch, self).__init__()
@@ -90,6 +91,9 @@ class CustomBranch(tf.keras.Model):
                     filters = int(layers[1])
                     stride = (int(layers[2]), int(layers[3]))
                     a_branch.append(ResBlock(filters, strides=stride))
+                elif layers[0] == 'Activation':
+                    act = layers[1]
+                    a_branch.append(tf.keras.layers.Activation(act))
                 else:
                     print('Error, the layer ', layers[0], 'type not defined.')
                     exit()

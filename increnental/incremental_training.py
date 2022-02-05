@@ -4,6 +4,7 @@ from tensorflow.keras import layers
 from model import Classifier, CustomModelForTest, CustomInceptionModel, CustomBranch
 import numpy as np
 from keras.callbacks import CSVLogger
+from model_generator import model_generator
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -52,13 +53,13 @@ if __name__ == '__main__':
     val_ds = prepare(val_ds, valid_augmentation, augment=True)
     test_ds = prepare(test_ds, valid_augmentation, augment=True)
 
-    train_ds = train_ds.cache()
-    val_ds = val_ds.cache()
+    #train_ds = train_ds.cache()
+    #val_ds = val_ds.cache()
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer = tf.keras.optimizers.Adam()
 
-    ori_model = CustomInceptionModel()
+    ori_model = model_generator()
     #ori_model = CustomModelForTest()
     ori_model.build([None, 28, 28, 1])
 
