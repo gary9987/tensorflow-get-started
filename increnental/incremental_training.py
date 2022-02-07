@@ -74,6 +74,7 @@ if __name__ == '__main__':
     Path("./log").mkdir(parents=True, exist_ok=True)
     csv_logger_callback = CSVLogger('./log/log.csv', append=True, separator=',')
 
+    # TODO define patience
     early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
     model.compile(optimizer=optimizer,
                   loss=loss_object,
