@@ -2,7 +2,7 @@ from model import ResBlock, CustomBranch
 import tensorflow as tf
 
 
-def model_generator(para = None):
+def model_generator(para=None):
     """
     Conv2D: ['Conv2D filter kernel_x kernel_y padding stride_x stride_y']
     MaxPooling2D: ['MaxPooling2D pool_x pool_y padding stride_x stride_y']
