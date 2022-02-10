@@ -7,6 +7,7 @@ from keras.callbacks import CSVLogger
 from model_generator import model_generator
 import csv
 from pathlib import Path
+import hashlib
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -47,6 +48,8 @@ if __name__ == '__main__':
         # 寫入一列資料
         writer.writerow(['Architecture', 'LogFilename'])
 
+    log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
+
     data_augmentation = tf.keras.Sequential([
         layers.Rescaling(1. / 255),
         layers.RandomRotation(0.2),
@@ -76,7 +79,6 @@ if __name__ == '__main__':
             'Activation relu', 'AveragePooling2D 7 7 same 2 2']
 
     ori_model = model_generator(model_par)
-    #ori_model = CustomModelForTest()
     ori_model.build([None, 28, 28, 1])
 
     for layer_no in range(len(ori_model.layers)):
@@ -85,9 +87,6 @@ if __name__ == '__main__':
     print(ori_model.summary())
 
     model = tf.keras.Sequential()
-
-
-    #csv_logger_callback = CSVLogger('./log/log.csv', append=True, separator=',')
 
     # TODO define patience
     early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
@@ -140,21 +139,36 @@ if __name__ == '__main__':
             for i in range(layer_no + 1):
                 model.layers[i].trainable = True
 
-            tmp = model_par[:layer_no+1]
-            csv_logger_callback = CSVLogger('./log/'+str(hash(str(model_par[:layer_no+1])))+'.csv', append=True, separator=',')
+            arch_hash = hashlib.shake_128(str(model_par[:layer_no+1]).encode('utf-8')).hexdigest(10)
+            csv_logger_callback = CSVLogger('./log/'+arch_hash+'.csv', append=False, separator=',')
             history = model.fit(
                 train_ds,
                 validation_data=val_ds,
                 epochs=epochs,
                 callbacks=[early_stopping_callback, csv_logger_callback]
             )
+
             print(model.summary())
 
-            with open('./log/' + dataset_name + '.csv', 'a', newline='') as csvfile:
-                # 建立 CSV 檔寫入器
+            #  ====================log process==============================
+            # Append log of this time to log_content.
+            with open('./log/'+arch_hash+'.csv', 'r', newline='') as csvfile:
+                rows = csv.reader(csvfile)
+                for i in rows:
+                    if i[0] == 'epoch':
+                        continue
+                    log_content.append(i)
+
+            # Write whole log_content to log file.
+            with open('./log/'+arch_hash+'.csv', 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                # 寫入一列資料
-                writer.writerow([str(model_par[:layer_no+1]), str(hash(str(model_par[:layer_no+1])))+'.csv'])
+                writer.writerows(log_content)
+
+            # Write the match between architecture and log file name to dataset log file.
+            with open('./log/' + dataset_name + '.csv', 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([str(model_par[:layer_no+1]), arch_hash + '.csv'])
+            # ==============================================================
 
             # Pop the classifier
             if layer_no + 1 != len(ori_model.layers):
