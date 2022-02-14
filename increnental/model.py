@@ -189,11 +189,11 @@ class Classifier(tf.keras.Model):
     def __init__(self, classes):
         super(Classifier, self).__init__()
         self.flt = tf.keras.layers.Flatten()
-        self.drop = tf.keras.layers.Dropout(0.1)
-        self.den1 = tf.keras.layers.Dense(classes)
+        #self.drop = tf.keras.layers.Dropout(0.1)
+        self.den1 = tf.keras.layers.Dense(classes, activation='softmax')
 
     def call(self, inputs):
         x = self.flt(inputs)
-        x = self.drop(x)
+        #x = self.drop(x)
         x = self.den1(x)
         return x

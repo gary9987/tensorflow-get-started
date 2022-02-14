@@ -10,6 +10,7 @@ def model_generator(para=None):
     ResBlock: ['ResBlock filter stride_x stride_y']
     Activation: ['Activation (name)'] ((name) can be 'relu', 'sigmoid', 'tanh', 'softmax', ...])
     BatchNormalization: ['BatchNormalization axis']
+    GlobalAveragePooling2D: ['GlobalAveragePooling2D']
     """
     if para is None:
         # Parameter for Branch
@@ -56,6 +57,8 @@ def model_generator(para=None):
             elif layers[0] == 'BatchNormalization':
                 axis = int(layers[1])
                 model.add(tf.keras.layers.BatchNormalization(axis=axis))
+            elif layers[0] == 'GlobalAveragePooling2D':
+                model.add(tf.keras.layers.GlobalAveragePooling2D())
             else:
                 print('Error, the layer ', layers[0], 'type not defined.')
                 exit()
