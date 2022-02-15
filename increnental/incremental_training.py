@@ -31,9 +31,8 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False):
     return ds.prefetch(buffer_size=AUTOTUNE)
 
 
-if __name__ == '__main__':
 
-    dataset_name = 'mnist'
+def incremental_training(dataset_name='mnist'):
     (train_ds, val_ds, test_ds), metadata = tfds.load(
         dataset_name,
         split=['train[:80%]', 'train[80%:90%]', 'train[90%:]'],
@@ -41,8 +40,9 @@ if __name__ == '__main__':
         as_supervised=True,
     )
 
-    Path("./log").mkdir(parents=True, exist_ok=True)
-    with open('./log/' + dataset_name+'.csv', 'w', newline='') as csvfile:
+    log_path = './' + dataset_name + '_log/'
+    Path(log_path).mkdir(parents=True, exist_ok=True)
+    with open(log_path + dataset_name+'.csv', 'w', newline='') as csvfile:
         # 建立 CSV 檔寫入器
         writer = csv.writer(csvfile)
         # 寫入一列資料
@@ -140,7 +140,7 @@ if __name__ == '__main__':
                 model.layers[i].trainable = True
 
             arch_hash = hashlib.shake_128(str(model_par[:layer_no+1]).encode('utf-8')).hexdigest(10)
-            csv_logger_callback = CSVLogger('./log/'+arch_hash+'.csv', append=False, separator=',')
+            csv_logger_callback = CSVLogger(log_path + arch_hash+'.csv', append=False, separator=',')
             history = model.fit(
                 train_ds,
                 validation_data=val_ds,
@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
             #  ====================log process==============================
             # Append log of this time to log_content.
-            with open('./log/'+arch_hash+'.csv', 'r', newline='') as csvfile:
+            with open(log_path + arch_hash+'.csv', 'r', newline='') as csvfile:
                 rows = csv.reader(csvfile)
                 for i in rows:
                     if i[0] == 'epoch':
@@ -160,12 +160,12 @@ if __name__ == '__main__':
                     log_content.append(i)
 
             # Write whole log_content to log file.
-            with open('./log/'+arch_hash+'.csv', 'w', newline='') as csvfile:
+            with open(log_path + arch_hash+'.csv', 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerows(log_content)
 
             # Write the match between architecture and log file name to dataset log file.
-            with open('./log/' + dataset_name + '.csv', 'a', newline='') as csvfile:
+            with open(log_path + dataset_name + '.csv', 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow([str(model_par[:layer_no+1]), arch_hash + '.csv'])
             # ==============================================================
@@ -177,3 +177,6 @@ if __name__ == '__main__':
             layer_no += 1
 
     model.evaluate(test_ds, verbose=2)
+
+if __name__ == '__main__':
+    incremental_training()
