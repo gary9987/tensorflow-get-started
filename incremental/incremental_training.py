@@ -50,6 +50,9 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
         as_supervised=True,
     )
 
+    # The dict is to record amount of the times which the arch appear
+    arch_count_map = dict()
+
     Path(log_path).mkdir(parents=True, exist_ok=True)
     with open(log_path + dataset_name + '.csv', 'w', newline='') as csvfile:
         # 建立 CSV 檔寫入器
@@ -145,6 +148,14 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
                     model.layers[i].trainable = True
 
                 arch_hash = hashlib.shake_128(str(arch[:layer_no + 1]).encode('utf-8')).hexdigest(10)
+                arch_count = 0
+                if arch_count_map.get(arch_hash) is not None:
+                    arch_count_map[arch_hash] = arch_count_map[arch_hash] + 1
+                    arch_count = arch_count_map.get(arch_hash)
+                else:
+                    arch_count_map[arch_hash] = 0
+                arch_hash += '_' + str(arch_count)
+
                 csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
                 history = model.fit(
                     train_ds,
@@ -185,4 +196,4 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
 
 
 if __name__ == '__main__':
-    incremental_training()
+    incremental_training(dataset_name='mnist', amount_of_cell_layers=2, start=0, end=5)

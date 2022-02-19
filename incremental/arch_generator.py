@@ -16,7 +16,8 @@ def generate_cell(amount_of_layer, start, end):
     ret = []
     for cell in itertools.product(layer_type, repeat=amount_of_layer):
         ret.append(list(cell))
-    if(end >= len(ret)):
+    print("[Notice] Amount of layer", amount_of_layer, "has", len(ret), "possibility")
+    if end >= len(ret):
         print("The \"end\" is out of bound. Amount of layer:", amount_of_layer, " Total have", len(ret), "possibility.")
         return []
 
