@@ -1,23 +1,65 @@
 import itertools
-
+import csv
+import hashlib
 
 def generate_matrix():
     matrix_list = []
 
-    rowx = [list() for i in range(7)]
+    rowx = [list() for _ in range(7)]
     for i in range(7, 0, -1):
-        #print(i)
-        for j in range(2**(i-1)):
+        for j in range(2 ** (i - 1)):
             bin = "{:07b}".format(j)
             bin_to_list = [int(x) for x in bin]
-            rowx[7-i].append(bin_to_list)
+            rowx[7 - i].append(bin_to_list)
 
-    rowx[0].remove([0 for i in range(7)])
-    for cell in itertools.product(rowx[0], rowx[1], rowx[2], rowx[3],rowx[4], rowx[5],rowx[6]):
+    rowx[0].remove([0 for _ in range(7)])
+    for cell in itertools.product(rowx[0], rowx[1], rowx[2], rowx[3], rowx[4], rowx[5], rowx[6]):
         matrix_list.append(list(cell))
 
     return matrix_list
 
+
+def matrix_to_arch(matrix, ops=None):
+    if ops is None:
+        ops = ['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3', 'OUTPUT']
+
+    arch = []
+
+    def build_with_dfs(abranch: list, ind):
+        if ops[ind] == 'OUTPUT' and len(abranch) != 0:
+            arch.append(abranch.copy())
+            return
+
+        abranch.append(ops[ind])
+        for k in range(len(matrix[ind])):
+            if matrix[ind][k] == 1:
+                build_with_dfs(abranch, k)
+        abranch.pop()
+
+    for i in range(len(matrix[0])):
+        if matrix[0][i] == 1:
+            tmp = []
+            build_with_dfs(tmp, i)
+
+    return arch
+
+
+def dump_arch_list(filename='./arch_list.csv'):
+    matrix_list = generate_matrix()
+
+    arch_count_map = {}
+    for matrix in matrix_list:
+        arch = matrix_to_arch(matrix)
+        if len(arch) != 0:
+            arch.sort()
+            arch_hash = hashlib.shake_128(str(arch).encode('utf-8')).hexdigest(10)
+            if arch_count_map.get(arch_hash) is None:
+                arch_count_map[arch_hash] = arch
+
+    with open(filename, 'w') as f:
+        writer = csv.writer(f)
+        for k, v in arch_count_map.items():
+            writer.writerow([v])
 
 
 def generate_cell(amount_of_layer, start, end):
@@ -73,8 +115,4 @@ def generate_arch(amount_of_cell_layers, start, end):
 
 
 if __name__ == '__main__':
-    #arch_list = generate_arch(amount_of_cell_layers=3, start=0, end=1)
-    #print(len(arch_list))
-    #print(arch_list)
-    ma = generate_matrix()
-    pass
+    dump_arch_list()
