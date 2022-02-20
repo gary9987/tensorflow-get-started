@@ -1,6 +1,25 @@
 import itertools
 
 
+def generate_matrix():
+    matrix_list = []
+
+    rowx = [list() for i in range(7)]
+    for i in range(7, 0, -1):
+        #print(i)
+        for j in range(2**(i-1)):
+            bin = "{:07b}".format(j)
+            bin_to_list = [int(x) for x in bin]
+            rowx[7-i].append(bin_to_list)
+
+    rowx[0].remove([0 for i in range(7)])
+    for cell in itertools.product(rowx[0], rowx[1], rowx[2], rowx[3],rowx[4], rowx[5],rowx[6]):
+        matrix_list.append(list(cell))
+
+    return matrix_list
+
+
+
 def generate_cell(amount_of_layer, start, end):
     """
     :param amount_of_layer: Means the amount of the layer in the cell.
@@ -54,6 +73,8 @@ def generate_arch(amount_of_cell_layers, start, end):
 
 
 if __name__ == '__main__':
-    arch_list = generate_arch(amount_of_cell_layers=3, start=0, end=1)
-    print(len(arch_list))
-    print(arch_list)
+    #arch_list = generate_arch(amount_of_cell_layers=3, start=0, end=1)
+    #print(len(arch_list))
+    #print(arch_list)
+    ma = generate_matrix()
+    pass
