@@ -9,9 +9,7 @@ import csv
 from pathlib import Path
 import hashlib
 from arch_generator import generate_arch
-
-
-
+from argparse import ArgumentParser, Namespace
 
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
@@ -31,16 +29,17 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size
     return ds.prefetch(buffer_size=autotune)
 
 
-def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0, end=0):
+def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
     """
     # ==========================================================
     Setting some parameters here.
     """
-    batch_size = 128
+    dataset_name = arge.dataset_name
+    batch_size = arge.batch_size
     AUTOTUNE = tf.data.AUTOTUNE
     log_path = './' + dataset_name + '_log/'
-    epochs = 20
-    look_ahead_epochs = 1
+    epochs = arge.epochs
+    look_ahead_epochs = arge.look_ahead_epochs
     # ==========================================================
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
@@ -49,6 +48,7 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
         with_info=True,
         as_supervised=True,
     )
+    num_classes = metadata.features['label'].num_classes
 
     # The dict is to record amount of the times which the arch appear
     arch_count_map = dict()
@@ -83,7 +83,7 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
     val_ds = val_ds.cache()
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    optimizer = tf.keras.optimizers.Adam()
+    optimizer = tf.keras.optimizers.Adam(learning_rate=arge.lr)
 
     arch_list = generate_arch(amount_of_cell_layers, start, end)
 
@@ -127,7 +127,7 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
                     model.add(ori_model.layers[layer_no])
 
                 # Add classifier
-                model.add(tf.keras.Sequential([Classifier(10)]))
+                model.add(tf.keras.Sequential([Classifier(num_classes)]))
 
                 for i in model.layers:
                     print(i.name, 'trainable:', i.trainable)
@@ -194,6 +194,31 @@ def incremental_training(dataset_name='mnist', amount_of_cell_layers=1, start=0,
 
         #model.evaluate(test_ds, verbose=2)
 
+def parse_args() -> Namespace:
+    parser = ArgumentParser()
+
+    # train
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--look_ahead_epochs", type=int, default=1)
+    parser.add_argument("--patience", type=int, default=2)
+
+    # model
+    parser.add_argument("--num_layers", type=int, default=4)
+    parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--bidirectional", type=bool, default=True)
+
+    # optimizer
+    parser.add_argument("--lr", type=float, default=1e-3)
+
+    # data
+    parser.add_argument("--dataset_name", type=str, default='mnist')
+    parser.add_argument("--batch_size", type=int, default=256)
+
+
+    args = parser.parse_args()
+    return args
+
 
 if __name__ == '__main__':
-    incremental_training(dataset_name='mnist', amount_of_cell_layers=2, start=0, end=5)
+    args = parse_args()
+    incremental_training(args, amount_of_cell_layers=2, start=0, end=5)
