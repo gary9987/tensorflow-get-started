@@ -11,6 +11,7 @@ import hashlib
 from arch_generator import generate_arch
 from argparse import ArgumentParser, Namespace
 
+
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
     # ds = ds.map(lambda x, y: (resize_and_rescale(x), y), num_parallel_calls=AUTOTUNE)
@@ -29,17 +30,17 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size
     return ds.prefetch(buffer_size=autotune)
 
 
-def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
+def incremental_training(args, amount_of_cell_layers=1, start=0, end=0):
     """
     # ==========================================================
     Setting some parameters here.
     """
-    dataset_name = arge.dataset_name
-    batch_size = arge.batch_size
+    dataset_name = args.dataset_name
+    batch_size = args.batch_size
     AUTOTUNE = tf.data.AUTOTUNE
     log_path = './' + dataset_name + '_log/'
-    epochs = arge.epochs
-    look_ahead_epochs = arge.look_ahead_epochs
+    epochs = args.epochs
+    look_ahead_epochs = args.look_ahead_epochs
     # ==========================================================
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
@@ -83,7 +84,17 @@ def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
     val_ds = val_ds.cache()
 
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=arge.lr)
+    optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.lr, momentum=args.momentum, epsilon=1.0)
+
+    # Custom learning rate scheduler
+    def cosine_by_step_scheduler(epoch, lr):
+        total_steps = int(args.epochs * metadata.splits['train'].num_examples /
+                          args.batch_size)
+        global_step = epoch * metadata.splits['train'].num_examples / args.batch_size
+        progress_fraction = global_step / total_steps
+        learning_rate = (0.5 * args.lr *
+                         (1 + tf.cos(np.pi * progress_fraction)))
+        return learning_rate
 
     arch_list = generate_arch(amount_of_cell_layers, start, end)
 
@@ -99,8 +110,6 @@ def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
 
         model = tf.keras.Sequential()
 
-        # TODO define patience
-        early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, mode='min')
         model.compile(optimizer=optimizer,
                       loss=loss_object,
                       metrics=['accuracy'])
@@ -142,6 +151,7 @@ def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
                     validation_data=val_ds,
                     epochs=look_ahead_epochs
                 )
+                print("Look-Ahead Finished.")
 
                 # train
                 for i in range(layer_no + 1):
@@ -156,12 +166,16 @@ def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
                     arch_count_map[arch_hash] = 0
                 arch_hash += '_' + str(arch_count)
 
+                # TODO define patience
+                early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
+                                                                           mode='min')
                 csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
+                scheduler_callback = tf.keras.callbacks.LearningRateScheduler(cosine_by_step_scheduler)
                 history = model.fit(
                     train_ds,
                     validation_data=val_ds,
                     epochs=epochs,
-                    callbacks=[early_stopping_callback, csv_logger_callback]
+                    callbacks=[early_stopping_callback, csv_logger_callback, scheduler_callback]
                 )
 
                 print(model.summary())
@@ -194,6 +208,7 @@ def incremental_training(arge, amount_of_cell_layers=1, start=0, end=0):
 
         #model.evaluate(test_ds, verbose=2)
 
+
 def parse_args() -> Namespace:
     parser = ArgumentParser()
 
@@ -208,12 +223,13 @@ def parse_args() -> Namespace:
     parser.add_argument("--bidirectional", type=bool, default=True)
 
     # optimizer
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=0.1)
+    parser.add_argument("--weight_decay", type=float, default=1e-4)
+    parser.add_argument("--momentum", type=float, default=0.9)
 
     # data
     parser.add_argument("--dataset_name", type=str, default='mnist')
     parser.add_argument("--batch_size", type=int, default=256)
-
 
     args = parser.parse_args()
     return args
