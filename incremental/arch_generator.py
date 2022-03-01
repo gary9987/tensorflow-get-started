@@ -1,6 +1,74 @@
 import itertools
 import csv
 import hashlib
+import numpy as np
+import tensorflow as tf
+
+
+def compute_vertex_channels(input_channels, output_channels, matrix):
+    """Computes the number of channels at every vertex.
+  Given the input channels and output channels, this calculates the number of
+  channels at each interior vertex. Interior vertices have the same number of
+  channels as the max of the channels of the vertices it feeds into. The output
+  channels are divided amongst the vertices that are directly connected to it.
+  When the division is not even, some vertices may receive an extra channel to
+  compensate.
+  Args:
+    input_channels: input channel count.
+    output_channels: output channel count.
+    matrix: adjacency matrix for the module (pruned by model_spec).
+  Returns:
+    list of channel counts, in order of the vertices.
+  """
+    num_vertices = np.shape(matrix)[0]
+
+    vertex_channels = [0] * num_vertices
+    vertex_channels[0] = input_channels
+    vertex_channels[num_vertices - 1] = output_channels
+
+    if num_vertices == 2:
+        # Edge case where module only has input and output vertices
+        return vertex_channels
+
+    # Compute the in-degree ignoring input, axis 0 is the src vertex and axis 1 is
+    # the dst vertex. Summing over 0 gives the in-degree count of each vertex.
+    in_degree = np.sum(matrix[1:], axis=0)
+    interior_channels = output_channels // in_degree[num_vertices - 1]
+    correction = output_channels % in_degree[num_vertices - 1]  # Remainder to add
+
+    # Set channels of vertices that flow directly to output
+    for v in range(1, num_vertices - 1):
+        if matrix[v, num_vertices - 1]:
+            vertex_channels[v] = interior_channels
+            if correction:
+                vertex_channels[v] += 1
+                correction -= 1
+
+    # Set channels for all other vertices to the max of the out edges, going
+    # backwards. (num_vertices - 2) index skipped because it only connects to
+    # output.
+    for v in range(num_vertices - 3, 0, -1):
+        if not matrix[v, num_vertices - 1]:
+            for dst in range(v + 1, num_vertices - 1):
+                if matrix[v, dst]:
+                    vertex_channels[v] = max(vertex_channels[v], vertex_channels[dst])
+        assert vertex_channels[v] > 0
+
+    #tf.logging.info('vertex_channels: %s', str(vertex_channels))
+
+    # Sanity check, verify that channels never increase and final channels add up.
+    final_fan_in = 0
+    for v in range(1, num_vertices - 1):
+        if matrix[v, num_vertices - 1]:
+            final_fan_in += vertex_channels[v]
+        for dst in range(v + 1, num_vertices - 1):
+            if matrix[v, dst]:
+                assert vertex_channels[v] >= vertex_channels[dst]
+    assert final_fan_in == output_channels or num_vertices == 2
+    # num_vertices == 2 means only input/output nodes, so 0 fan-in
+
+    return vertex_channels
+
 
 def generate_matrix():
     matrix_list = []
@@ -13,6 +81,7 @@ def generate_matrix():
             rowx[7 - i].append(bin_to_list)
 
     rowx[0].remove([0 for _ in range(7)])
+
     for cell in itertools.product(rowx[0], rowx[1], rowx[2], rowx[3], rowx[4], rowx[5], rowx[6]):
         matrix_list.append(list(cell))
 
@@ -25,16 +94,16 @@ def matrix_to_arch(matrix, ops=None):
 
     arch = []
 
-    def build_with_dfs(abranch: list, ind):
-        if ops[ind] == 'OUTPUT' and len(abranch) != 0:
-            arch.append(abranch.copy())
+    def build_with_dfs(a_branch: list, ind):
+        if ops[ind] == 'OUTPUT' and len(a_branch) != 0:
+            arch.append(a_branch.copy())
             return
 
-        abranch.append(ops[ind])
+        a_branch.append(ops[ind])
         for k in range(len(matrix[ind])):
             if matrix[ind][k] == 1:
-                build_with_dfs(abranch, k)
-        abranch.pop()
+                build_with_dfs(a_branch, k)
+        a_branch.pop()
 
     for i in range(len(matrix[0])):
         if matrix[0][i] == 1:
@@ -49,12 +118,16 @@ def dump_arch_list(filename='./arch_list.csv'):
 
     arch_count_map = {}
     for matrix in matrix_list:
-        arch = matrix_to_arch(matrix)
-        if len(arch) != 0:
-            arch.sort()
-            arch_hash = hashlib.shake_128(str(arch).encode('utf-8')).hexdigest(10)
-            if arch_count_map.get(arch_hash) is None:
-                arch_count_map[arch_hash] = arch
+        try:
+            arch = matrix_to_arch(matrix)
+            print(compute_vertex_channels(64, 128, np.array(matrix)))
+            if len(arch) != 0:
+                arch.sort()
+                arch_hash = hashlib.shake_128(str(arch).encode('utf-8')).hexdigest(10)
+                if arch_count_map.get(arch_hash) is None:
+                    arch_count_map[arch_hash] = arch
+        except:
+            pass
 
     with open(filename, 'w') as f:
         writer = csv.writer(f)
@@ -115,4 +188,14 @@ def generate_arch(amount_of_cell_layers, start, end):
 
 
 if __name__ == '__main__':
-    dump_arch_list()
+    #dump_arch_list()
+
+    matrix = [[0, 1, 1, 1, 0, 1, 0],  # input layer
+              [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
+              [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
+              [0, 0, 0, 0, 1, 0, 0],  # 5x5 conv (replaced by two 3x3's)
+              [0, 0, 0, 0, 0, 0, 1],  # 5x5 conv (replaced by two 3x3's)
+              [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
+              [0, 0, 0, 0, 0, 0, 0]]
+    x = compute_vertex_channels(64, 128, np.array(matrix))
+    print(x)
