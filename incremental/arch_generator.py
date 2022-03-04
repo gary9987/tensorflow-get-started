@@ -2,7 +2,7 @@ import itertools
 import csv
 import hashlib
 import numpy as np
-import tensorflow as tf
+import pickle
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
@@ -54,7 +54,7 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
                     vertex_channels[v] = max(vertex_channels[v], vertex_channels[dst])
         assert vertex_channels[v] > 0
 
-    #tf.logging.info('vertex_channels: %s', str(vertex_channels))
+    # tf.logging.info('vertex_channels: %s', str(vertex_channels))
 
     # Sanity check, verify that channels never increase and final channels add up.
     final_fan_in = 0
@@ -70,7 +70,50 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
     return vertex_channels
 
 
-def generate_matrix(size=7):
+def is_valid_matrix(matrix):
+    arch = []
+    visit = [0] * len(matrix)
+    visit[0] = 1
+    out_valid = True
+
+    def build_with_dfs(a_branch: list, ind):
+        visit[ind] = 1
+        if ind == len(matrix) - 1 and len(a_branch) != 0:
+            arch.append(a_branch.copy())
+            return True
+
+        valid = True
+        a_branch.append(ind)
+        out_degree = False
+        for k in range(len(matrix[ind])):
+            if matrix[ind][k] == 1:
+                # if this node point to other node then out_degree is True
+                out_degree = True
+                # check all out branch is valid
+                valid = valid and build_with_dfs(a_branch, k)
+        a_branch.pop()
+        return False if not out_degree else valid
+
+    def check_all_zero(ind):
+        for i in matrix[ind]:
+            if i == 1:
+                return False
+        return True
+
+    for i in range(len(matrix[0])):
+        if matrix[0][i] == 1:
+            tmp = []
+            out_valid = out_valid and build_with_dfs(tmp, i)
+
+    # check matrix row of node which in_degree is 0 is all 0
+    for i in range(len(visit)):
+        if visit[i] == 0:
+            out_valid = out_valid and check_all_zero(i)
+
+    return out_valid
+
+
+def generate_valid_matrix(size=7):
     matrix_list = []
 
     rowx = [list() for _ in range(size)]
@@ -83,32 +126,10 @@ def generate_matrix(size=7):
     rowx[0].remove([0 for _ in range(size)])
 
     for cell in itertools.product(*[x for x in rowx]):
-        matrix_list.append(list(cell))
+        if is_valid_matrix(list(cell)):
+            matrix_list.append(list(cell))
 
     return matrix_list
-
-
-def is_valid_matrix(matrix):
-    arch = []
-
-    def build_with_dfs(a_branch: list, ind):
-        if ind == len(matrix) and len(a_branch) != 0:
-            arch.append(a_branch.copy())
-            return True
-
-        valid = True
-        a_branch.append(ind)
-        for k in range(len(matrix[ind])):
-            if matrix[ind][k] == 1:
-                valid = valid or build_with_dfs(a_branch, k)
-        a_branch.pop()
-
-    for i in range(len(matrix[0])):
-        if matrix[0][i] == 1:
-            tmp = []
-            build_with_dfs(tmp, i)
-
-    return arch
 
 
 def matrix_to_arch(matrix, ops=None):
@@ -136,26 +157,40 @@ def matrix_to_arch(matrix, ops=None):
     return arch
 
 
-def dump_arch_list(filename='./arch_list.csv'):
-    matrix_list = generate_matrix()
+def dump_matrix_list(filename='./matrix_list.pkl'):
+    matrix_list = generate_valid_matrix()
+    with open(filename, 'wb') as f:
+        pickle.dump(matrix_list, f)
+
+
+def dump_arch_list(size=7, filename='./arch_list.pkl'):
+    file = open('./matrix_list.pkl', 'rb')
+    matrix_list = pickle.load(file)
+    file.close()
 
     arch_count_map = {}
-    for matrix in matrix_list:
-        try:
-            arch = matrix_to_arch(matrix)
-            print(compute_vertex_channels(64, 128, np.array(matrix)))
-            if len(arch) != 0:
-                arch.sort()
-                arch_hash = hashlib.shake_128(str(arch).encode('utf-8')).hexdigest(10)
-                if arch_count_map.get(arch_hash) is None:
-                    arch_count_map[arch_hash] = arch
-        except:
-            pass
+    record = []
 
-    with open(filename, 'w') as f:
-        writer = csv.writer(f)
-        for k, v in arch_count_map.items():
-            writer.writerow([v])
+    ops_type = ['CONV1X1', 'CONV3X3', 'MAXPOOL3X3']
+    ops_type = [ops_type] * (size - 2)
+    for ops in itertools.product(['INPUT'], *ops_type, ['OUTPUT']):
+        for matrix in matrix_list:
+            try:
+                arch = matrix_to_arch(matrix, ops)
+                if len(arch) != 0:
+                    arch.sort()
+                    arch_hash = hashlib.shake_128(str(arch).encode('utf-8')).hexdigest(10)
+                    if arch_count_map.get(arch_hash) is None:
+                        arch_count_map[arch_hash] = arch
+                        record.append([arch, matrix])
+                    else:
+                        print(arch)
+            except:
+                print('Not valid matrix')
+
+    with open(filename, 'wb') as f:
+        pickle.dump(record, f)
+
 
 
 def generate_cell(amount_of_layer, start, end):
@@ -211,8 +246,10 @@ def generate_arch(amount_of_cell_layers, start, end):
 
 
 if __name__ == '__main__':
-    #dump_arch_list()
-    generate_matrix(3)
+    dump_arch_list(7)
+    # dump_matrix_list()
+
+
     '''
     matrix = [[0, 1, 1, 1, 0, 1, 0],  # input layer
               [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv

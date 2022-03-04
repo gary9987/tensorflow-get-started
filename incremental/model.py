@@ -158,6 +158,7 @@ def CustomInceptionModel_Test():
     return model
 '''
 
+
 def CustomInceptionModel():
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.Conv2D(192, (3, 3), padding='same', strides=(1, 1), activation='relu'))
