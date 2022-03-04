@@ -70,22 +70,45 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
     return vertex_channels
 
 
-def generate_matrix():
+def generate_matrix(size=7):
     matrix_list = []
 
-    rowx = [list() for _ in range(7)]
-    for i in range(7, 0, -1):
+    rowx = [list() for _ in range(size)]
+    for i in range(size, 0, -1):
         for j in range(2 ** (i - 1)):
-            bin = "{:07b}".format(j)
+            bin = "{j:0{size}b}".format(size=size, j=j)
             bin_to_list = [int(x) for x in bin]
-            rowx[7 - i].append(bin_to_list)
+            rowx[size - i].append(bin_to_list)
 
-    rowx[0].remove([0 for _ in range(7)])
+    rowx[0].remove([0 for _ in range(size)])
 
-    for cell in itertools.product(rowx[0], rowx[1], rowx[2], rowx[3], rowx[4], rowx[5], rowx[6]):
+    for cell in itertools.product(*[x for x in rowx]):
         matrix_list.append(list(cell))
 
     return matrix_list
+
+
+def is_valid_matrix(matrix):
+    arch = []
+
+    def build_with_dfs(a_branch: list, ind):
+        if ind == len(matrix) and len(a_branch) != 0:
+            arch.append(a_branch.copy())
+            return True
+
+        valid = True
+        a_branch.append(ind)
+        for k in range(len(matrix[ind])):
+            if matrix[ind][k] == 1:
+                valid = valid or build_with_dfs(a_branch, k)
+        a_branch.pop()
+
+    for i in range(len(matrix[0])):
+        if matrix[0][i] == 1:
+            tmp = []
+            build_with_dfs(tmp, i)
+
+    return arch
 
 
 def matrix_to_arch(matrix, ops=None):
@@ -189,7 +212,8 @@ def generate_arch(amount_of_cell_layers, start, end):
 
 if __name__ == '__main__':
     #dump_arch_list()
-
+    generate_matrix(3)
+    '''
     matrix = [[0, 1, 1, 1, 0, 1, 0],  # input layer
               [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
               [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
@@ -199,3 +223,4 @@ if __name__ == '__main__':
               [0, 0, 0, 0, 0, 0, 0]]
     x = compute_vertex_channels(64, 128, np.array(matrix))
     print(x)
+    '''
