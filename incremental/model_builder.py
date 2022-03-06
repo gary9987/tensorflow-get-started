@@ -328,8 +328,8 @@ class Cell_Model(tf.keras.Model):
 
     def build_graph(self):
         shape = tuple(list(self.inputs_shape)[1:])
-        x = keras.Input(shape=shape)
-        return keras.Model(inputs=[x], outputs=self.call(x))
+        x = tf.keras.Input(shape=shape)
+        return tf.keras.Model(inputs=[x], outputs=self.call(x))
 
 
 if __name__ == '__main__':

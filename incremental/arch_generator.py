@@ -3,71 +3,8 @@ import csv
 import hashlib
 import numpy as np
 import pickle
-
-
-def compute_vertex_channels(input_channels, output_channels, matrix):
-    """Computes the number of channels at every vertex.
-  Given the input channels and output channels, this calculates the number of
-  channels at each interior vertex. Interior vertices have the same number of
-  channels as the max of the channels of the vertices it feeds into. The output
-  channels are divided amongst the vertices that are directly connected to it.
-  When the division is not even, some vertices may receive an extra channel to
-  compensate.
-  Args:
-    input_channels: input channel count.
-    output_channels: output channel count.
-    matrix: adjacency matrix for the module (pruned by model_spec).
-  Returns:
-    list of channel counts, in order of the vertices.
-  """
-    num_vertices = np.shape(matrix)[0]
-
-    vertex_channels = [0] * num_vertices
-    vertex_channels[0] = input_channels
-    vertex_channels[num_vertices - 1] = output_channels
-
-    if num_vertices == 2:
-        # Edge case where module only has input and output vertices
-        return vertex_channels
-
-    # Compute the in-degree ignoring input, axis 0 is the src vertex and axis 1 is
-    # the dst vertex. Summing over 0 gives the in-degree count of each vertex.
-    in_degree = np.sum(matrix[1:], axis=0)
-    interior_channels = output_channels // in_degree[num_vertices - 1]
-    correction = output_channels % in_degree[num_vertices - 1]  # Remainder to add
-
-    # Set channels of vertices that flow directly to output
-    for v in range(1, num_vertices - 1):
-        if matrix[v, num_vertices - 1]:
-            vertex_channels[v] = interior_channels
-            if correction:
-                vertex_channels[v] += 1
-                correction -= 1
-
-    # Set channels for all other vertices to the max of the out edges, going
-    # backwards. (num_vertices - 2) index skipped because it only connects to
-    # output.
-    for v in range(num_vertices - 3, 0, -1):
-        if not matrix[v, num_vertices - 1]:
-            for dst in range(v + 1, num_vertices - 1):
-                if matrix[v, dst]:
-                    vertex_channels[v] = max(vertex_channels[v], vertex_channels[dst])
-        assert vertex_channels[v] > 0
-
-    # tf.logging.info('vertex_channels: %s', str(vertex_channels))
-
-    # Sanity check, verify that channels never increase and final channels add up.
-    final_fan_in = 0
-    for v in range(1, num_vertices - 1):
-        if matrix[v, num_vertices - 1]:
-            final_fan_in += vertex_channels[v]
-        for dst in range(v + 1, num_vertices - 1):
-            if matrix[v, dst]:
-                assert vertex_channels[v] >= vertex_channels[dst]
-    assert final_fan_in == output_channels or num_vertices == 2
-    # num_vertices == 2 means only input/output nodes, so 0 fan-in
-
-    return vertex_channels
+from model_builder import Cell_Model
+import model_spec
 
 
 def is_valid_matrix(matrix):
@@ -124,15 +61,20 @@ def generate_valid_matrix(size=7):
             rowx[size - i].append(bin_to_list)
 
     rowx[0].remove([0 for _ in range(size)])
-
+    not_valid = 0
     for cell in itertools.product(*[x for x in rowx]):
-        if is_valid_matrix(list(cell)):
-            matrix_list.append(list(cell))
+        try:
+            if is_valid_matrix(list(cell)):
+                model_spec.ModelSpec(matrix=list(cell), ops=['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3', 'OUTPUT'])
+                matrix_list.append(list(cell))
+        except:
+            not_valid += 1
 
+    print("Not valid: ", not_valid)
     return matrix_list
 
 
-def matrix_to_arch(matrix, ops=None):
+def matrix_to_arch_path(matrix, ops=None):
     if ops is None:
         ops = ['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3', 'OUTPUT']
 
@@ -163,7 +105,7 @@ def dump_matrix_list(filename='./matrix_list.pkl'):
         pickle.dump(matrix_list, f)
 
 
-def dump_arch_list(size=7, filename='./arch_list.pkl'):
+def dump_cell_list(size=7, filename='./arch_list.pkl'):
     file = open('./matrix_list.pkl', 'rb')
     matrix_list = pickle.load(file)
     file.close()
@@ -171,27 +113,41 @@ def dump_arch_list(size=7, filename='./arch_list.pkl'):
     arch_count_map = {}
     record = []
 
-    ops_type = ['CONV1X1', 'CONV3X3', 'MAXPOOL3X3']
+    ops_type = ['conv1x1-bn-relu', 'conv3x3-bn-relu', 'maxpool3x3']
     ops_type = [ops_type] * (size - 2)
-    for ops in itertools.product(['INPUT'], *ops_type, ['OUTPUT']):
-        for matrix in matrix_list:
-            try:
-                arch = matrix_to_arch(matrix, ops)
-                if len(arch) != 0:
-                    arch.sort()
-                    arch_hash = hashlib.shake_128(str(arch).encode('utf-8')).hexdigest(10)
-                    if arch_count_map.get(arch_hash) is None:
-                        arch_count_map[arch_hash] = arch
-                        record.append([arch, matrix])
-                    else:
-                        print(arch)
-            except:
-                print('Not valid matrix')
 
+    len_ops = 0
+    for _ in itertools.product(['INPUT'], *ops_type, ['OUTPUT']):
+        len_ops += 1
+
+    print(len(matrix_list))
+    print(len_ops)
+
+    for ops in itertools.product(['INPUT'], *ops_type, ['OUTPUT']):
+        print(ops)
+        for matrix in matrix_list:
+            #try:
+            ops = list(ops)
+            arch_path = matrix_to_arch_path(matrix, ops)
+            #spec = model_spec.ModelSpec(matrix, ops)
+            #model = Cell_Model(spec, (None, 28, 28, 1), 32, True)
+            #model.build_graph().summary()
+
+            if len(arch_path) != 0:
+                arch_path.sort()
+                arch_hash = hashlib.shake_128(str(arch_path).encode('utf-8')).hexdigest(10)
+                if arch_count_map.get(arch_hash) is None:
+                    arch_count_map[arch_hash] = arch_path
+                    record.append([matrix, ops])
+                #else:
+                    #print(arch_path)
+            #except:
+            #    print('Not valid model')
+    print(len(record))
     with open(filename, 'wb') as f:
         pickle.dump(record, f)
 
-
+'''
 def generate_cell(amount_of_layer, start, end):
     """
     :param amount_of_layer: Means the amount of the layer in the cell.
@@ -242,11 +198,12 @@ def generate_arch(amount_of_cell_layers, start, end):
         arch_list.append(tmp_arch)
 
     return arch_list
-
+'''
 
 if __name__ == '__main__':
-    dump_arch_list(7)
-    # dump_matrix_list()
+    #dump_matrix_list()
+    dump_cell_list(7)
+
 
 
     '''
