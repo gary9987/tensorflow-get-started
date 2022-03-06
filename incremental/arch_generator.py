@@ -99,8 +99,8 @@ def matrix_to_arch_path(matrix, ops=None):
     return arch
 
 
-def dump_matrix_list(filename='./matrix_list.pkl'):
-    matrix_list = generate_valid_matrix()
+def dump_matrix_list(size=7, filename='./matrix_list.pkl'):
+    matrix_list = generate_valid_matrix(size=size)
     with open(filename, 'wb') as f:
         pickle.dump(matrix_list, f)
 
@@ -126,12 +126,10 @@ def dump_cell_list(size=7, filename='./arch_list.pkl'):
     for ops in itertools.product(['INPUT'], *ops_type, ['OUTPUT']):
         print(ops)
         for matrix in matrix_list:
-            #try:
+
             ops = list(ops)
+            # Get the matrix with ops dfs path to detect isomorphism
             arch_path = matrix_to_arch_path(matrix, ops)
-            #spec = model_spec.ModelSpec(matrix, ops)
-            #model = Cell_Model(spec, (None, 28, 28, 1), 32, True)
-            #model.build_graph().summary()
 
             if len(arch_path) != 0:
                 arch_path.sort()
@@ -139,10 +137,7 @@ def dump_cell_list(size=7, filename='./arch_list.pkl'):
                 if arch_count_map.get(arch_hash) is None:
                     arch_count_map[arch_hash] = arch_path
                     record.append([matrix, ops])
-                #else:
-                    #print(arch_path)
-            #except:
-            #    print('Not valid model')
+
     print(len(record))
     with open(filename, 'wb') as f:
         pickle.dump(record, f)
@@ -202,10 +197,11 @@ def generate_arch(amount_of_cell_layers, start, end):
 
 if __name__ == '__main__':
     #dump_matrix_list()
-    dump_cell_list(7)
-
-
-
+    #dump_cell_list(7)
+    file = open('./arch_list.pkl', 'rb')
+    cell_list = pickle.load(file)
+    file.close()
+    print(len(cell_list))
     '''
     matrix = [[0, 1, 1, 1, 0, 1, 0],  # input layer
               [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
