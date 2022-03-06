@@ -20,8 +20,8 @@ from __future__ import print_function
 
 import abc
 
+import keras.layers
 import tensorflow as tf
-from tensorflow import keras
 from keras import layers
 
 # Currently, only channels_last is well supported.
@@ -31,9 +31,9 @@ BN_MOMENTUM = 0.997
 BN_EPSILON = 1e-5
 
 
-class conv_bn_relu(layers.Layer):
+class Conv_BN_ReLU(tf.keras.layers.Layer):
     def __init__(self, conv_size, conv_filters, is_training, data_format):
-        super(conv_bn_relu, self).__init__()
+        super(Conv_BN_ReLU, self).__init__()
         """Convolution followed by batch norm and ReLU."""
         if data_format == 'channels_last':
             axis = 3
@@ -64,6 +64,7 @@ class conv_bn_relu(layers.Layer):
         x = self.bn(x, training=self.is_training)
         x = self.relu(x)
         return x
+
 
 '''
 def conv_bn_relu(inputs, conv_size, conv_filters, is_training, data_format):
@@ -120,9 +121,9 @@ class BaseOp(object):
 class Identity(BaseOp):
     """Identity operation (ignores channels)."""
 
-    def build(self, inputs, channels):
+    def build(self, channels):
         del channels  # Unused
-        return tf.identity(inputs, name='identity')
+        return keras.layers.Lambda(lambda x: x, name='Identity')
 
 
 class Conv3x3BnRelu(BaseOp):
@@ -130,15 +131,16 @@ class Conv3x3BnRelu(BaseOp):
 
     def build(self, channels):
         with tf.compat.v1.variable_scope('Conv3x3-BN-ReLU'):
-            net = conv_bn_relu(3, channels, self.is_training, self.data_format)
+            net = Conv_BN_ReLU(3, channels, self.is_training, self.data_format)
         return net
 
 
 class Conv1x1BnRelu(BaseOp):
     """1x1 convolution with batch norm and ReLU activation."""
+
     def build(self, channels):
         with tf.compat.v1.variable_scope('Conv1x1-BN-ReLU'):
-            net = conv_bn_relu(1, channels, self.is_training, self.data_format)
+            net = Conv_BN_ReLU(1, channels, self.is_training, self.data_format)
         return net
 
 
@@ -156,7 +158,7 @@ class MaxPool3x3(BaseOp):
 
         return net
 
-
+'''
 class BottleneckConv3x3(BaseOp):
     """[1x1(/4)]+3x3+[1x1(*4)] conv. Uses BN + ReLU post-activation."""
 
@@ -203,15 +205,15 @@ class MaxPool3x3Conv1x1(BaseOp):
             net = conv_bn_relu(net, 1, channels, self.is_training, self.data_format)
 
         return net
-
+'''
 
 # Commas should not be used in op names
 OP_MAP = {
     'identity': Identity,
     'conv3x3-bn-relu': Conv3x3BnRelu,
     'conv1x1-bn-relu': Conv1x1BnRelu,
-    'maxpool3x3': MaxPool3x3,
-    'bottleneck3x3': BottleneckConv3x3,
-    'bottleneck5x5': BottleneckConv5x5,
-    'maxpool3x3-conv1x1': MaxPool3x3Conv1x1,
+    'maxpool3x3': MaxPool3x3 #,
+    #'bottleneck3x3': BottleneckConv3x3,
+    #'bottleneck5x5': BottleneckConv5x5,
+    #'maxpool3x3-conv1x1': MaxPool3x3Conv1x1,
 }

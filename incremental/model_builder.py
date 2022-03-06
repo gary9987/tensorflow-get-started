@@ -85,7 +85,7 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
 def projection(channels, is_training, data_format):
     """1x1 projection (as in ResNet) followed by batch normalization and ReLU."""
     with tf.compat.v1.variable_scope('projection'):
-        net = base_ops.conv_bn_relu(1, channels, is_training, data_format)
+        net = base_ops.Conv_BN_ReLU(1, channels, is_training, data_format)
     return net
 
 
@@ -344,7 +344,7 @@ if __name__ == '__main__':
                        [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
                        [0, 0, 0, 0, 0, 0, 0]])
 
-    ops = ['INPUT', 'conv3x3-bn-relu', 'maxpool3x3', 'conv3x3-bn-relu', 'maxpool3x3', 'conv3x3-bn-relu',
+    ops = ['INPUT', 'conv3x3-bn-relu', 'maxpool3x3', 'conv1x1-bn-relu', 'maxpool3x3', 'identity',
            'OUTPUT']
 
     spec = ModelSpec(matrix, ops)
