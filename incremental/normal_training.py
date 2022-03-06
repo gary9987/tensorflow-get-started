@@ -4,7 +4,7 @@ from tensorflow.keras import layers
 from model import CustomModelForTest, Classifier, CustomInceptionModel
 from model_generator import model_generator
 from model_spec import ModelSpec
-from model_builder import Cell
+from model_builder import Cell_Model
 import numpy as np
 
 batch_size = 128
@@ -71,11 +71,11 @@ if __name__ == '__main__':
                        [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
                        [0, 0, 0, 0, 0, 0, 0]])
 
-    ops = ['INPUT', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
+    ops = ['INPUT', 'conv1x1-bn-relu', 'conv3x3-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
            'OUTPUT']
 
     spec = ModelSpec(matrix, ops)
-    model.add(Cell(spec, (None, 28, 28, 1), channels=64, is_training=True))
+    model.add(Cell_Model(spec, (None, 28, 28, 1), channels=64, is_training=True))
     model.add(Classifier(10))
     model.build([None, 28, 28, 1])
     model.summary()

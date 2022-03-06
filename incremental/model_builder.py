@@ -208,14 +208,14 @@ def build_module(spec, inputs, channels, is_training):
 '''
 
 
-class Cell(tf.keras.Model):
+class Cell_Model(tf.keras.Model):
     """
     If the stride is not equal to 1 or the filters of the input is not equal to given filter_nums, then it will need a
     Con1x1 layer with given stride to project the input.
     """
 
     def __init__(self, spec, inputs_shape, channels, is_training):
-        super(Cell, self).__init__()
+        super(Cell_Model, self).__init__()
 
         self.inputs_shape = inputs_shape
         self.spec = spec
@@ -349,8 +349,7 @@ if __name__ == '__main__':
 
     spec = ModelSpec(matrix, ops)
 
-    model = Cell(spec, (None, 28, 28, 1), channels=64, is_training=True)
-    model.build((None, 28, 28, 1))
+    model = Cell_Model(spec, (None, 28, 28, 1), channels=64, is_training=True)
     print(model.build_graph().summary())
     tf.keras.utils.plot_model(
         model.build_graph(), to_file='model.png', show_shapes=True, show_dtype=False,
