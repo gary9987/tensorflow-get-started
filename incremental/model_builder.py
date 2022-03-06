@@ -89,7 +89,7 @@ def projection(channels, is_training, data_format):
     return net
 
 
-def truncate(inputs_shape, channels, data_format):
+def truncate(inputs_shape, inputs, channels, data_format):
     """Slice the inputs to channels if necessary."""
     if data_format == 'channels_last':
         input_channels = inputs_shape[3]
@@ -110,6 +110,7 @@ def truncate(inputs_shape, channels, data_format):
             return tf.slice(inputs, [0, 0, 0, 0], [-1, -1, -1, channels])
         else:
             return tf.slice(inputs, [0, 0, 0, 0], [-1, channels, -1, -1])
+
 
 '''
 def build_module(spec, inputs, channels, is_training):
@@ -216,6 +217,7 @@ class Cell(tf.keras.Model):
     def __init__(self, spec, inputs_shape, channels, is_training):
         super(Cell, self).__init__()
 
+        self.inputs_shape = inputs_shape
         self.spec = spec
         self.is_training = is_training
         self.channels = channels
@@ -233,18 +235,19 @@ class Cell(tf.keras.Model):
             input_channels, channels, spec.matrix)
 
         # --------------------------------------------------------
-        self.ops = []
+        self.ops = {}
+        self.proj_list = {}
 
         final_concat_in = []
         # Construct tensors shape from input forward
-        tensors = [inputs_shape]
+        self.tensors = [inputs_shape]
 
         for t in range(1, self.num_vertices - 1):
             with tf.compat.v1.variable_scope('vertex_{}'.format(t)):
 
                 # Create add connection from projected input
                 if self.spec.matrix[0, t]:
-                    self.pro1 = projection(
+                    self.proj_list[t] = projection(
                         self.vertex_channels[t],
                         self.is_training,
                         self.spec.data_format)
@@ -253,14 +256,14 @@ class Cell(tf.keras.Model):
                 op = base_ops.OP_MAP[self.spec.ops[t]](
                     is_training=self.is_training,
                     data_format=self.spec.data_format)
-                self.ops.append(op.build(self.vertex_channels[t]))
+                self.ops[t] = op.build(self.vertex_channels[t])
 
             t_shape = list(inputs_shape)
             t_shape[self.channel_axis] = self.vertex_channels[t]
 
-            tensors.append(tuple(t_shape))
+            self.tensors.append(tuple(t_shape))
             if self.spec.matrix[t, self.num_vertices - 1]:
-                final_concat_in.append(tensors[t])
+                final_concat_in.append(self.tensors[t])
 
         # Construct final output tensor by concating all fan-in and adding input.
         if not final_concat_in:
@@ -279,36 +282,28 @@ class Cell(tf.keras.Model):
                     self.is_training,
                     self.spec.data_format)
 
-
     def call(self, inputs):
         # Construct tensors from input forward
         tensors = [tf.identity(inputs, name='input')]
-
         final_concat_in = []
+
         for t in range(1, self.num_vertices - 1):
             with tf.compat.v1.variable_scope('vertex_{}'.format(t)):
                 # Create interior connections, truncating if necessary
-                self.add_in = [truncate(tensors[src], self.vertex_channels[t], self.spec.data_format)
+                add_in = [truncate(self.tensors[src], tensors[src], self.vertex_channels[t], self.spec.data_format)
                           for src in range(1, t) if self.spec.matrix[src, t]]
 
                 # Create add connection from projected input
                 if self.spec.matrix[0, t]:
-                    self.add_in.append(projection(
-                        tensors[0],
-                        self.vertex_channels[t],
-                        self.is_training,
-                        self.spec.data_format))
+                    add_in.append(self.proj_list[t](tensors[0]))
 
-                if len(self.add_in) == 1:
-                    vertex_input = self.add_in[0]
+                if len(add_in) == 1:
+                    vertex_input = add_in[0]
                 else:
-                    vertex_input = tf.add_n(self.add_in)
+                    vertex_input = tf.add_n(add_in)
 
-                    # Perform op at vertex t
-                op = base_ops.OP_MAP[self.spec.ops[t]](
-                    is_training=self.is_training,
-                    data_format=self.spec.data_format)
-                vertex_value = op.build(vertex_input, self.vertex_channels[t])
+                # Perform op at vertex t
+                vertex_value = self.ops[t](vertex_input)
 
             tensors.append(vertex_value)
             if self.spec.matrix[t, self.num_vertices - 1]:
@@ -319,12 +314,7 @@ class Cell(tf.keras.Model):
             # No interior vertices, input directly connected to output
             assert spec.matrix[0, self.num_vertices - 1]
             with tf.compat.v1.variable_scope('output'):
-                outputs = projection(
-                    tensors[0],
-                    self.channels,
-                    self.is_training,
-                    self.spec.data_format)
-
+                outputs = self.outputs1(tensors[0])
         else:
             if len(final_concat_in) == 1:
                 outputs = final_concat_in[0]
@@ -332,14 +322,14 @@ class Cell(tf.keras.Model):
                 outputs = tf.concat(final_concat_in, self.channel_axis)
 
             if self.spec.matrix[0, self.num_vertices - 1]:
-                outputs += projection(
-                    tensors[0],
-                    self.channels,
-                    self.is_training,
-                    self.spec.data_format)
+                outputs += self.outputs1(tensors[0])
 
-        outputs = tf.identity(outputs, name='output')
         return outputs
+
+    def build_graph(self):
+        shape = tuple(list(self.inputs_shape)[1:])
+        x = keras.Input(shape=shape)
+        return keras.Model(inputs=[x], outputs=self.call(x))
 
 
 if __name__ == '__main__':
@@ -354,14 +344,16 @@ if __name__ == '__main__':
                        [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
                        [0, 0, 0, 0, 0, 0, 0]])
 
-    ops = ['INPUT', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
+    ops = ['INPUT', 'conv3x3-bn-relu', 'maxpool3x3', 'conv3x3-bn-relu', 'maxpool3x3', 'conv3x3-bn-relu',
            'OUTPUT']
 
     spec = ModelSpec(matrix, ops)
 
-    inputs1 = keras.Input(shape=(28, 28, 1))
     model = Cell(spec, (None, 28, 28, 1), channels=64, is_training=True)
-    inputs = keras.Input(shape=(28, 28, 1))
     model.build((None, 28, 28, 1))
-    print(model.summary())
-
+    print(model.build_graph().summary())
+    tf.keras.utils.plot_model(
+        model.build_graph(), to_file='model.png', show_shapes=True, show_dtype=False,
+        show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96,
+        layer_range=None, show_layer_activations=False
+    )

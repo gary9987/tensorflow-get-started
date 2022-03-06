@@ -61,7 +61,7 @@ class conv_bn_relu(layers.Layer):
 
     def call(self, inputs):
         x = self.conv(inputs)
-        x = self.bn(x)
+        x = self.bn(x, training=self.is_training)
         x = self.relu(x)
         return x
 
@@ -128,11 +128,9 @@ class Identity(BaseOp):
 class Conv3x3BnRelu(BaseOp):
     """3x3 convolution with batch norm and ReLU activation."""
 
-    def build(self, inputs, channels):
+    def build(self, channels):
         with tf.compat.v1.variable_scope('Conv3x3-BN-ReLU'):
-            net = conv_bn_relu(
-                inputs, 3, channels, self.is_training, self.data_format)
-
+            net = conv_bn_relu(3, channels, self.is_training, self.data_format)
         return net
 
 
@@ -141,21 +139,20 @@ class Conv1x1BnRelu(BaseOp):
     def build(self, channels):
         with tf.compat.v1.variable_scope('Conv1x1-BN-ReLU'):
             net = conv_bn_relu(1, channels, self.is_training, self.data_format)
-
         return net
 
 
 class MaxPool3x3(BaseOp):
     """3x3 max pool with no subsampling."""
 
-    def build(self, inputs, channels):
+    def build(self, channels):
         del channels  # Unused
         with tf.compat.v1.variable_scope('MaxPool3x3'):
             net = tf.keras.layers.MaxPool2D(
                 pool_size=(3, 3),
                 strides=(1, 1),
                 padding='same',
-                data_format=self.data_format)(inputs)
+                data_format=self.data_format)
 
         return net
 
