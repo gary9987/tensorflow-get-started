@@ -192,7 +192,6 @@ def dump_arch_list(size=7, filename='./arch_list.pkl'):
         pickle.dump(record, f)
 
 
-
 def generate_cell(amount_of_layer, start, end):
     """
     :param amount_of_layer: Means the amount of the layer in the cell.

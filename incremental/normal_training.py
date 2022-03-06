@@ -3,6 +3,9 @@ import tensorflow_datasets as tfds
 from tensorflow.keras import layers
 from model import CustomModelForTest, Classifier, CustomInceptionModel
 from model_generator import model_generator
+from model_spec import ModelSpec
+from model_builder import Cell
+import numpy as np
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -60,7 +63,19 @@ if __name__ == '__main__':
 
     # Create an instance of the model
     model = tf.keras.Sequential()
-    model.add(model_generator())
+    matrix = np.array([[0, 1, 1, 1, 0, 1, 0],  # input layer
+                       [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
+                       [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
+                       [0, 0, 0, 0, 1, 0, 0],  # 5x5 conv (replaced by two 3x3's)
+                       [0, 0, 0, 0, 0, 0, 1],  # 5x5 conv (replaced by two 3x3's)
+                       [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
+                       [0, 0, 0, 0, 0, 0, 0]])
+
+    ops = ['INPUT', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
+           'OUTPUT']
+
+    spec = ModelSpec(matrix, ops)
+    model.add(Cell(spec, (None, 28, 28, 1), channels=64, is_training=True))
     model.add(Classifier(10))
     model.build([None, 28, 28, 1])
     model.summary()

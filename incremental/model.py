@@ -120,6 +120,7 @@ class CustomBranch(tf.keras.Model):
 
         return tf.keras.layers.concatenate(outputs, axis=3)
 
+
 '''
 class InceptionBlock(tf.keras.Model):
     def __init__(self, nb_filter_para):
