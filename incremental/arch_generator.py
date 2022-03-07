@@ -105,7 +105,7 @@ def dump_matrix_list(size=7, filename='./matrix_list.pkl'):
         pickle.dump(matrix_list, f)
 
 
-def dump_cell_list(size=7, filename='./arch_list.pkl'):
+def dump_cell_list(size=7, filename='./cell_list.pkl'):
     file = open('./matrix_list.pkl', 'rb')
     matrix_list = pickle.load(file)
     file.close()
@@ -198,7 +198,7 @@ def generate_arch(amount_of_cell_layers, start, end):
 if __name__ == '__main__':
     #dump_matrix_list()
     #dump_cell_list(7)
-    file = open('./arch_list.pkl', 'rb')
+    file = open('./cell_list.pkl', 'rb')
     cell_list = pickle.load(file)
     file.close()
     print(len(cell_list))
