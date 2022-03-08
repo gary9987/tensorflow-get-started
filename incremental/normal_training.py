@@ -4,7 +4,7 @@ from tensorflow.keras import layers
 from model import CustomModelForTest, Classifier, CustomInceptionModel
 from model_generator import model_generator
 from model_spec import ModelSpec
-from model_builder import Cell_Model
+from model_builder import Cell_Model, Arch_Model
 import numpy as np
 
 batch_size = 128
@@ -75,7 +75,7 @@ if __name__ == '__main__':
            'OUTPUT']
 
     spec = ModelSpec(matrix, ops)
-    model.add(Cell_Model(spec, (None, 28, 28, 1), channels=64, is_training=True))
+    model.add(Arch_Model(spec, (None, 28, 28, 1), is_training=True, num_cells=3, num_stacks=3).build_graph())
     model.add(Classifier(10))
     model.build([None, 28, 28, 1])
     model.summary()

@@ -15,6 +15,7 @@
 import tensorflow as tf
 import base_ops
 import numpy as np
+from model_spec import ModelSpec
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
@@ -112,109 +113,8 @@ def truncate(inputs_shape, inputs, channels, data_format):
             return tf.slice(inputs, [0, 0, 0, 0], [-1, channels, -1, -1])
 
 
-'''
-def build_module(spec, inputs, channels, is_training):
-    """Build a custom module using a proposed model spec.
-  Builds the model using the adjacency matrix and op labels specified. Channels
-  controls the module output channel count but the interior channels are
-  determined via equally splitting the channel count whenever there is a
-  concatenation of Tensors.
-  Args:
-    spec: ModelSpec object.
-    inputs: input Tensors to this module.
-    channels: output channel count.
-    is_training: bool for whether this model is training.
-  Returns:
-    output Tensor from built module.
-  Raises:
-    ValueError: invalid spec
-  """
-    num_vertices = np.shape(spec.matrix)[0]
-
-    if spec.data_format == 'channels_last':
-        channel_axis = 3
-    elif spec.data_format == 'channels_first':
-        channel_axis = 1
-    else:
-        raise ValueError('invalid data_format')
-
-    input_channels = inputs.get_shape()[channel_axis]
-    # vertex_channels[i] = number of output channels of vertex i
-    vertex_channels = compute_vertex_channels(
-        input_channels, channels, spec.matrix)
-
-    # Construct tensors from input forward
-    #tensors = [tf.identity(inputs, name='input')]
-
-    x = tf.keras.layers.Lambda(lambda a: a, name='input')(inputs)
-    tensors = [x]
-
-    final_concat_in = []
-    for t in range(1, num_vertices - 1):
-        with tf.compat.v1.variable_scope('vertex_{}'.format(t)):
-            # Create interior connections, truncating if necessary
-            add_in = [truncate(tensors[src], vertex_channels[t], spec.data_format)
-                      for src in range(1, t) if spec.matrix[src, t]]
-
-            # Create add connection from projected input
-            if spec.matrix[0, t]:
-                add_in.append(projection(
-                    tensors[0],
-                    vertex_channels[t],
-                    is_training,
-                    spec.data_format))
-
-            if len(add_in) == 1:
-                vertex_input = add_in[0]
-            else:
-                vertex_input = tf.add_n(add_in)
-
-            # Perform op at vertex t
-            op = base_ops.OP_MAP[spec.ops[t]](
-                is_training=is_training,
-                data_format=spec.data_format)
-            vertex_value = op.build(vertex_input, vertex_channels[t])
-
-        tensors.append(vertex_value)
-        if spec.matrix[t, num_vertices - 1]:
-            final_concat_in.append(tensors[t])
-
-    # Construct final output tensor by concating all fan-in and adding input.
-    if not final_concat_in:
-        # No interior vertices, input directly connected to output
-        assert spec.matrix[0, num_vertices - 1]
-        with tf.compat.v1.variable_scope('output'):
-            outputs = projection(
-                tensors[0],
-                channels,
-                is_training,
-                spec.data_format)
-
-    else:
-        if len(final_concat_in) == 1:
-            outputs = final_concat_in[0]
-        else:
-            #outputs = tf.concat(final_concat_in, channel_axis)
-            outputs = tf.keras.layers.Concatenate(channel_axis)(final_concat_in)
-        if spec.matrix[0, num_vertices - 1]:
-            outputs += projection(
-                tensors[0],
-                channels,
-                is_training,
-                spec.data_format)
-
-    outputs = tf.identity(outputs, name='output')
-    return outputs
-'''
-
-
 class Cell_Model(tf.keras.Model):
-    """
-    If the stride is not equal to 1 or the filters of the input is not equal to given filter_nums, then it will need a
-    Con1x1 layer with given stride to project the input.
-    """
-
-    def __init__(self, spec, inputs_shape, channels, is_training):
+    def __init__(self, spec: ModelSpec, inputs_shape, channels, is_training):
         super(Cell_Model, self).__init__()
 
         self.inputs_shape = inputs_shape
@@ -332,9 +232,62 @@ class Cell_Model(tf.keras.Model):
         return tf.keras.Model(inputs=[x], outputs=self.call(x))
 
 
+class Arch_Model(tf.keras.Model):
+    def __init__(self, spec: ModelSpec, inputs_shape, is_training, num_stacks=3, num_cells=3):
+        super(Arch_Model, self).__init__()
+        self.spec = spec
+        self.is_training = is_training
+        self.num_stacks = num_stacks
+        self.num_cells = num_cells
+        self.inputs_shape = inputs_shape
+        if spec.data_format == 'channels_last':
+            self.channel_axis = 3
+        elif spec.data_format == 'channels_first':
+            self.channel_axis = 1
+
+        self.stem = base_ops.Conv_BN_ReLU(3, 128, is_training, self.spec.data_format)
+        self.down_sample_layers = {}
+        self.cell_layers = {}
+
+        now_channel = 128
+        for i in range(num_stacks):
+            if i > 0:
+                self.down_sample_layers[i] = tf.keras.layers.MaxPool2D(
+                    pool_size=(2, 2),
+                    strides=(2, 2),
+                    padding='same',
+                    data_format=self.spec.data_format)
+                now_channel *= 2
+
+            layers_list = []
+            for j in range(num_cells):
+                layers_list.append(Cell_Model(self.spec,
+                                             inputs_shape=inputs_shape,
+                                             channels=now_channel,
+                                             is_training=is_training))
+            self.cell_layers[i] = layers_list
+
+        self.glob_avg_pool = tf.keras.layers.GlobalAveragePooling2D(data_format=self.spec.data_format)
+
+    def call(self, inputs):
+        x = self.stem(inputs)
+        for i in range(self.num_stacks):
+            if i > 0:
+                x = self.down_sample_layers[i](x)
+
+            for cell in self.cell_layers[i]:
+                x = cell(x)
+
+        x = self.glob_avg_pool(x)
+        return x
+
+    def build_graph(self):
+        shape = tuple(list(self.inputs_shape)[1:])
+        x = tf.keras.Input(shape=shape)
+        return tf.keras.Model(inputs=[x], outputs=self.call(x))
+
+
 if __name__ == '__main__':
-    from model_spec import ModelSpec
-    import keras
 
     matrix = np.array([[0, 1, 1, 1, 0, 1, 0],  # input layer
                        [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
@@ -349,10 +302,23 @@ if __name__ == '__main__':
 
     spec = ModelSpec(matrix, ops)
 
-    model = Cell_Model(spec, (None, 28, 28, 1), channels=64, is_training=True)
+    model = Arch_Model(spec, (None, 28, 28, 1), is_training=True, num_stacks=3, num_cells=3)
     print(model.build_graph().summary())
     tf.keras.utils.plot_model(
-        model.build_graph(), to_file='model.png', show_shapes=True, show_dtype=False,
+        model.build_graph(), to_file='arch_model.png', show_shapes=True, show_dtype=False,
         show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96,
         layer_range=None, show_layer_activations=False
     )
+    '''
+    model = Cell_Model(spec, (None, 28, 28, 1), channels=128, is_training=True)
+    print(model.build_graph().summary())
+    tf.keras.utils.plot_model(
+        model.build_graph(), to_file='cell_model.png', show_shapes=True, show_dtype=False,
+        show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96,
+        layer_range=None, show_layer_activations=False
+    )'''
+
+    model = model.build_graph()
+
+    for layer_no in range(len(model.layers)):
+        print(model.layers[layer_no].name)
