@@ -8,9 +8,9 @@ from model_generator import model_generator
 import csv
 from pathlib import Path
 import hashlib
-from arch_generator import generate_arch
 from argparse import ArgumentParser, Namespace
-
+from model_builder import build_arch_model
+from model_spec import ModelSpec
 
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
@@ -96,12 +96,25 @@ def incremental_training(args, amount_of_cell_layers=1, start=0, end=0):
                          (1 + tf.cos(np.pi * progress_fraction)))
         return learning_rate
 
-    arch_list = generate_arch(amount_of_cell_layers, start, end)
+    # TODO: chage to matrix list
+    arch_list = [0]
 
     for arch in arch_list:
-        ori_model = model_generator(arch)
+        matrix = np.array([[0, 1, 1, 1, 0, 1, 0],  # input layer
+                           [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
+                           [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
+                           [0, 0, 0, 0, 1, 0, 0],  # 5x5 conv (replaced by two 3x3's)
+                           [0, 0, 0, 0, 0, 0, 1],  # 5x5 conv (replaced by two 3x3's)
+                           [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
+                           [0, 0, 0, 0, 0, 0, 0]])
+
+        ops = ['INPUT', 'conv1x1-bn-relu', 'conv3x3-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
+               'OUTPUT']
+        spec = ModelSpec(matrix, ops)
+        inputs_shape = (None, 28, 28, 1)
+        ori_model = build_arch_model(spec, inputs_shape)
         # TODO The shape need change with different dataset
-        ori_model.build([None, 28, 28, 1])
+        ori_model.build([*inputs_shape])
 
         for layer_no in range(len(ori_model.layers)):
             print(ori_model.layers[layer_no].name)

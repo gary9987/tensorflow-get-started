@@ -86,7 +86,7 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
 def projection(channels, is_training, data_format):
     """1x1 projection (as in ResNet) followed by batch normalization and ReLU."""
     with tf.compat.v1.variable_scope('projection'):
-        net = base_ops.Conv_BN_ReLU(1, channels, is_training, data_format)
+        net = base_ops.ConvBnRelu(1, channels, is_training, data_format)
     return net
 
 
@@ -113,9 +113,9 @@ def truncate(inputs_shape, inputs, channels, data_format):
             return tf.slice(inputs, [0, 0, 0, 0], [-1, channels, -1, -1])
 
 
-class Cell_Model(tf.keras.Model):
+class CellModel(tf.keras.Model):
     def __init__(self, spec: ModelSpec, inputs_shape, channels, is_training):
-        super(Cell_Model, self).__init__()
+        super(CellModel, self).__init__()
 
         self.inputs_shape = inputs_shape
         self.spec = spec
@@ -231,6 +231,7 @@ class Cell_Model(tf.keras.Model):
         x = tf.keras.Input(shape=shape)
         return tf.keras.Model(inputs=[x], outputs=self.call(x))
 
+
 '''
 class Arch_Model(tf.keras.Model):
     def __init__(self, spec: ModelSpec, inputs_shape, is_training, num_stacks=3, num_cells=3):
@@ -283,10 +284,11 @@ class Arch_Model(tf.keras.Model):
         return tf.keras.Model(inputs=[x], outputs=self.call(x))
 '''
 
-def generate_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks=3, num_cells=3, is_training=None):
+
+def build_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks=3, num_cells=3, is_training=None):
     model = tf.keras.Sequential()
     # stem
-    model.add(base_ops.Conv_BN_ReLU(3, 128, is_training, spec.data_format))
+    model.add(base_ops.ConvBnRelu(3, 128, is_training, spec.data_format))
 
     for i in range(num_stacks):
         if i > 0:
@@ -299,10 +301,10 @@ def generate_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_sta
             init_channel *= 2
 
         for j in range(num_cells):
-            model.add(Cell_Model(spec,
-                                 inputs_shape=inputs_shape,
-                                 channels=init_channel,
-                                 is_training=is_training))
+            model.add(CellModel(spec,
+                                inputs_shape=inputs_shape,
+                                channels=init_channel,
+                                is_training=is_training))
 
     model.add(tf.keras.layers.GlobalAveragePooling2D(data_format=spec.data_format))
     return model
@@ -323,7 +325,7 @@ if __name__ == '__main__':
 
     spec = ModelSpec(matrix, ops)
 
-    model = generate_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    model = build_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
     model.build([None, 28, 28, 1])
     print(model.summary())
     tf.keras.utils.plot_model(

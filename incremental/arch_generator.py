@@ -3,7 +3,7 @@ import csv
 import hashlib
 import numpy as np
 import pickle
-from model_builder import Cell_Model
+from model_builder import CellModel
 import model_spec
 
 

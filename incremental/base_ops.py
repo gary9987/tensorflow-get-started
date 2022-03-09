@@ -31,9 +31,9 @@ BN_MOMENTUM = 0.997
 BN_EPSILON = 1e-5
 
 
-class Conv_BN_ReLU(tf.keras.layers.Layer):
+class ConvBnRelu(tf.keras.layers.Layer):
     def __init__(self, conv_size, conv_filters, is_training, data_format):
-        super(Conv_BN_ReLU, self).__init__()
+        super(ConvBnRelu, self).__init__()
         """Convolution followed by batch norm and ReLU."""
         if data_format == 'channels_last':
             axis = 3
@@ -131,7 +131,7 @@ class Conv3x3BnRelu(BaseOp):
 
     def build(self, channels):
         with tf.compat.v1.variable_scope('Conv3x3-BN-ReLU'):
-            net = Conv_BN_ReLU(3, channels, self.is_training, self.data_format)
+            net = ConvBnRelu(3, channels, self.is_training, self.data_format)
         return net
 
 
@@ -140,7 +140,7 @@ class Conv1x1BnRelu(BaseOp):
 
     def build(self, channels):
         with tf.compat.v1.variable_scope('Conv1x1-BN-ReLU'):
-            net = Conv_BN_ReLU(1, channels, self.is_training, self.data_format)
+            net = ConvBnRelu(1, channels, self.is_training, self.data_format)
         return net
 
 
