@@ -50,28 +50,45 @@ def is_valid_matrix(matrix):
     return out_valid
 
 
-def generate_valid_matrix(size=7):
-    matrix_list = []
+class Matrix_Generator:
+    def __init__(self, size, edge_limit):
+        self.size = size
+        self.edge_limit = edge_limit
+        self.matrix_list = []
 
-    rowx = [list() for _ in range(size)]
-    for i in range(size, 0, -1):
-        for j in range(2 ** (i - 1)):
-            bin = "{j:0{size}b}".format(size=size, j=j)
-            bin_to_list = [int(x) for x in bin]
-            rowx[size - i].append(bin_to_list)
+    def generate_valid_matrix(self):
+        rowx = [list() for _ in range(self.size)]
+        for i in range(self.size, 0, -1):
+            for j in range(2 ** (i - 1)):
+                bin = "{j:0{size}b}".format(size=self.size, j=j)
+                bin_to_list = [int(x) for x in bin]
+                rowx[self.size - i].append(bin_to_list)
 
-    rowx[0].remove([0 for _ in range(size)])
-    not_valid = 0
-    for cell in itertools.product(*[x for x in rowx]):
-        try:
-            if is_valid_matrix(list(cell)):
-                model_spec.ModelSpec(matrix=list(cell), ops=['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3', 'OUTPUT'])
-                matrix_list.append(list(cell))
-        except:
-            not_valid += 1
+        # Remove the all 0 row, because this means input vertex not connect to any vertex
+        rowx[0].remove([0 for _ in range(self.size)])
 
-    print("Not valid: ", not_valid)
-    return matrix_list
+        not_valid = 0
+        for cell in itertools.product(*[x for x in rowx]):
+            try:
+                if sum(sum(list(cell), [])) <= self.edge_limit and is_valid_matrix(list(cell)):
+                    model_spec.ModelSpec(matrix=list(cell),
+                                         ops=['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3',
+                                              'OUTPUT'])
+                    self.matrix_list.append(list(cell))
+            except:
+                not_valid += 1
+
+        print('Matrix list length is', len(self.matrix_list))
+        print("Not valid amount: ", not_valid)
+
+    def dump_to_file(self, filename='./matrix_list.pkl'):
+        if len(self.matrix_list) == 0:
+            print('Please call generate_valid_matrix() first')
+            return
+        with open(filename, 'wb') as f:
+            pickle.dump(self.matrix_list, f)
+        print(filename)
+        return filename
 
 
 def matrix_to_arch_path(matrix, ops=None):
@@ -99,14 +116,8 @@ def matrix_to_arch_path(matrix, ops=None):
     return arch
 
 
-def dump_matrix_list(size=7, filename='./matrix_list.pkl'):
-    matrix_list = generate_valid_matrix(size=size)
-    with open(filename, 'wb') as f:
-        pickle.dump(matrix_list, f)
-
-
-def dump_cell_list(size=7, filename='./cell_list.pkl'):
-    file = open('./matrix_list.pkl', 'rb')
+def dump_cell_list_by_matrix_list(size=7, matrix_filename='./matrix_list.pkl', filename='./cell_list.pkl'):
+    file = open(matrix_filename, 'rb')
     matrix_list = pickle.load(file)
     file.close()
 
@@ -138,26 +149,23 @@ def dump_cell_list(size=7, filename='./cell_list.pkl'):
                     arch_count_map[arch_hash] = arch_path
                     record.append([matrix, ops])
 
-    print(len(record))
+    print('Cell list length is', len(record))
     with open(filename, 'wb') as f:
         pickle.dump(record, f)
+    print(filename)
 
 
 if __name__ == '__main__':
-    #dump_matrix_list()
-    #dump_cell_list(7)
+    # dump_matrix_list()
+
+    matrix_generator = Matrix_Generator(size=7, edge_limit=9)
+    matrix_generator.generate_valid_matrix()
+    matrix_generator.dump_to_file()
+
+    dump_cell_list_by_matrix_list(size=7)
+    '''
     file = open('./cell_list.pkl', 'rb')
     cell_list = pickle.load(file)
     file.close()
     print(cell_list[0])
-    '''
-    matrix = [[0, 1, 1, 1, 0, 1, 0],  # input layer
-              [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
-              [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
-              [0, 0, 0, 0, 1, 0, 0],  # 5x5 conv (replaced by two 3x3's)
-              [0, 0, 0, 0, 0, 0, 1],  # 5x5 conv (replaced by two 3x3's)
-              [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
-              [0, 0, 0, 0, 0, 0, 0]]
-    x = compute_vertex_channels(64, 128, np.array(matrix))
-    print(x)
     '''

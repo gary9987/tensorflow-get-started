@@ -231,7 +231,7 @@ class Cell_Model(tf.keras.Model):
         x = tf.keras.Input(shape=shape)
         return tf.keras.Model(inputs=[x], outputs=self.call(x))
 
-
+'''
 class Arch_Model(tf.keras.Model):
     def __init__(self, spec: ModelSpec, inputs_shape, is_training, num_stacks=3, num_cells=3):
         super(Arch_Model, self).__init__()
@@ -240,10 +240,6 @@ class Arch_Model(tf.keras.Model):
         self.num_stacks = num_stacks
         self.num_cells = num_cells
         self.inputs_shape = inputs_shape
-        if spec.data_format == 'channels_last':
-            self.channel_axis = 3
-        elif spec.data_format == 'channels_first':
-            self.channel_axis = 1
 
         self.stem = base_ops.Conv_BN_ReLU(3, 128, is_training, self.spec.data_format)
         self.down_sample_layers = {}
@@ -262,9 +258,9 @@ class Arch_Model(tf.keras.Model):
             layers_list = []
             for j in range(num_cells):
                 layers_list.append(Cell_Model(self.spec,
-                                             inputs_shape=inputs_shape,
-                                             channels=now_channel,
-                                             is_training=is_training))
+                                              inputs_shape=inputs_shape,
+                                              channels=now_channel,
+                                              is_training=is_training))
             self.cell_layers[i] = layers_list
 
         self.glob_avg_pool = tf.keras.layers.GlobalAveragePooling2D(data_format=self.spec.data_format)
@@ -285,6 +281,31 @@ class Arch_Model(tf.keras.Model):
         shape = tuple(list(self.inputs_shape)[1:])
         x = tf.keras.Input(shape=shape)
         return tf.keras.Model(inputs=[x], outputs=self.call(x))
+'''
+
+def generate_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks=3, num_cells=3, is_training=None):
+    model = tf.keras.Sequential()
+    # stem
+    model.add(base_ops.Conv_BN_ReLU(3, 128, is_training, spec.data_format))
+
+    for i in range(num_stacks):
+        if i > 0:
+            model.add(tf.keras.layers.MaxPool2D(
+                pool_size=(2, 2),
+                strides=(2, 2),
+                padding='same',
+                data_format=spec.data_format))
+
+            init_channel *= 2
+
+        for j in range(num_cells):
+            model.add(Cell_Model(spec,
+                                 inputs_shape=inputs_shape,
+                                 channels=init_channel,
+                                 is_training=is_training))
+
+    model.add(tf.keras.layers.GlobalAveragePooling2D(data_format=spec.data_format))
+    return model
 
 
 if __name__ == '__main__':
@@ -302,23 +323,13 @@ if __name__ == '__main__':
 
     spec = ModelSpec(matrix, ops)
 
-    model = Arch_Model(spec, (None, 28, 28, 1), is_training=True, num_stacks=3, num_cells=3)
-    print(model.build_graph().summary())
+    model = generate_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    model.build([None, 28, 28, 1])
+    print(model.summary())
     tf.keras.utils.plot_model(
-        model.build_graph(), to_file='arch_model.png', show_shapes=True, show_dtype=False,
+        model, to_file='arch_model.png', show_shapes=True, show_dtype=False,
         show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96,
-        layer_range=None, show_layer_activations=False
-    )
-    '''
-    model = Cell_Model(spec, (None, 28, 28, 1), channels=128, is_training=True)
-    print(model.build_graph().summary())
-    tf.keras.utils.plot_model(
-        model.build_graph(), to_file='cell_model.png', show_shapes=True, show_dtype=False,
-        show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96,
-        layer_range=None, show_layer_activations=False
-    )'''
-
-    model = model.build_graph()
+        layer_range=None, show_layer_activations=False)
 
     for layer_no in range(len(model.layers)):
         print(model.layers[layer_no].name)
