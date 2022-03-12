@@ -126,4 +126,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-increnental/log/
+incremental/log/
