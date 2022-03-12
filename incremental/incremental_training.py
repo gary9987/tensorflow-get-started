@@ -44,6 +44,7 @@ def incremental_training(args, cell_filename, start=0, end=0):
     log_path = './' + dataset_name + '_log/'
     epochs = args.epochs
     look_ahead_epochs = args.look_ahead_epochs
+    inputs_shape = args.inputs_shape
     # ==========================================================
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
@@ -96,18 +97,15 @@ def incremental_training(args, cell_filename, start=0, end=0):
                          (1 + tf.cos(np.pi * progress_fraction)))
         return learning_rate
 
-    # TODO: chage to matrix list
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
     file.close()
 
-    for cell in cell_list:
+    for cell in cell_list[start: end+1]:
         matrix, ops = cell[0], cell[1]
 
         spec = ModelSpec(np.array(matrix), ops)
-        inputs_shape = (None, 28, 28, 1)
         ori_model = build_arch_model(spec, inputs_shape)
-        # TODO The shape need change with different dataset
         ori_model.build([*inputs_shape])
 
         for layer_no in range(len(ori_model.layers)):
@@ -172,7 +170,6 @@ def incremental_training(args, cell_filename, start=0, end=0):
                 arch_count_map[arch_hash] = 0
             arch_hash += '_' + str(arch_count)
 
-            # TODO define patience
             early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
                                                                        mode='min')
             csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
@@ -223,12 +220,8 @@ def parse_args() -> Namespace:
     # train
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
+    # TODO change patience
     parser.add_argument("--patience", type=int, default=1)
-
-    # model
-    parser.add_argument("--num_layers", type=int, default=4)
-    parser.add_argument("--dropout", type=float, default=0.2)
-    parser.add_argument("--bidirectional", type=bool, default=True)
 
     # optimizer
     parser.add_argument("--lr", type=float, default=0.1)
@@ -238,6 +231,8 @@ def parse_args() -> Namespace:
     # data
     parser.add_argument("--dataset_name", type=str, default='mnist')
     parser.add_argument("--batch_size", type=int, default=256)
+    # inputs_shape need to match with dataset
+    parser.add_argument("--inputs_shape", type=tuple, default=(None, 28, 28, 1))
 
     args = parser.parse_args()
     return args
