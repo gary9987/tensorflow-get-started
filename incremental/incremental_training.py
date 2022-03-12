@@ -1,3 +1,5 @@
+import pickle
+
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
@@ -11,6 +13,7 @@ import hashlib
 from argparse import ArgumentParser, Namespace
 from model_builder import build_arch_model
 from model_spec import ModelSpec
+
 
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
@@ -30,7 +33,7 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size
     return ds.prefetch(buffer_size=autotune)
 
 
-def incremental_training(args, amount_of_cell_layers=1, start=0, end=0):
+def incremental_training(args, cell_filename, start=0, end=0):
     """
     # ==========================================================
     Setting some parameters here.
@@ -55,11 +58,8 @@ def incremental_training(args, amount_of_cell_layers=1, start=0, end=0):
     arch_count_map = dict()
 
     Path(log_path).mkdir(parents=True, exist_ok=True)
-    with open(log_path + dataset_name + '.csv', 'w', newline='') as csvfile:
-        # 建立 CSV 檔寫入器
-        writer = csv.writer(csvfile)
-        # 寫入一列資料
-        writer.writerow(['Architecture', 'LogFilename'])
+    with open(log_path + dataset_name + '.pkl', 'wb') as file:
+        pickle.dump([], file)
 
     # log content will store the training records of every architecture.
     log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
@@ -97,20 +97,14 @@ def incremental_training(args, amount_of_cell_layers=1, start=0, end=0):
         return learning_rate
 
     # TODO: chage to matrix list
-    arch_list = [0]
+    file = open(cell_filename, 'rb')
+    cell_list = pickle.load(file)
+    file.close()
 
-    for arch in arch_list:
-        matrix = np.array([[0, 1, 1, 1, 0, 1, 0],  # input layer
-                           [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
-                           [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
-                           [0, 0, 0, 0, 1, 0, 0],  # 5x5 conv (replaced by two 3x3's)
-                           [0, 0, 0, 0, 0, 0, 1],  # 5x5 conv (replaced by two 3x3's)
-                           [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
-                           [0, 0, 0, 0, 0, 0, 0]])
+    for cell in cell_list:
+        matrix, ops = cell[0], cell[1]
 
-        ops = ['INPUT', 'conv1x1-bn-relu', 'conv3x3-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
-               'OUTPUT']
-        spec = ModelSpec(matrix, ops)
+        spec = ModelSpec(np.array(matrix), ops)
         inputs_shape = (None, 28, 28, 1)
         ori_model = build_arch_model(spec, inputs_shape)
         # TODO The shape need change with different dataset
@@ -131,95 +125,96 @@ def incremental_training(args, amount_of_cell_layers=1, start=0, end=0):
         layer_no = 0
         while layer_no < len(ori_model.layers):
             print(layer_no)
-            # if (ori_model.layers[ind].name[0] == 'c'):
-            if True:
-                # freeze the pre layer for look-ahead process
-                for i in range(layer_no):
-                    model.layers[i].trainable = False
-                    # print(model.layers[i].name + ' False')
 
-                # Add k+1 sublayer
-                model.add(ori_model.layers[layer_no])
-                # Skip when meet a pooling layer
-                while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
-                                                                'drop' in ori_model.layers[layer_no + 1].name or
-                                                                'activation' in ori_model.layers[layer_no + 1].name):
-                    print(ori_model.layers[layer_no + 1].name, ' layer is not trainable so it will be added')
-                    layer_no += 1
-                    model.add(ori_model.layers[layer_no])
+            # freeze the pre layer for look-ahead process
+            for i in range(layer_no):
+                model.layers[i].trainable = False
+                # print(model.layers[i].name + ' False')
 
-                # Add classifier
-                model.add(tf.keras.Sequential([Classifier(num_classes)]))
-
-                for i in model.layers:
-                    print(i.name, 'trainable:', i.trainable)
-
-                model.compile(optimizer=optimizer,
-                              loss=loss_object,
-                              metrics=['accuracy'])
-
-                # train a epochs for Look-Ahead phase
-                history = model.fit(
-                    train_ds,
-                    validation_data=val_ds,
-                    epochs=look_ahead_epochs
-                )
-                print("Look-Ahead Finished.")
-
-                # train
-                for i in range(layer_no + 1):
-                    model.layers[i].trainable = True
-
-                arch_hash = hashlib.shake_128(str(arch[:layer_no + 1]).encode('utf-8')).hexdigest(10)
-                arch_count = 0
-                if arch_count_map.get(arch_hash) is not None:
-                    arch_count_map[arch_hash] = arch_count_map[arch_hash] + 1
-                    arch_count = arch_count_map.get(arch_hash)
-                else:
-                    arch_count_map[arch_hash] = 0
-                arch_hash += '_' + str(arch_count)
-
-                # TODO define patience
-                early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
-                                                                           mode='min')
-                csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
-                scheduler_callback = tf.keras.callbacks.LearningRateScheduler(cosine_by_step_scheduler)
-                history = model.fit(
-                    train_ds,
-                    validation_data=val_ds,
-                    epochs=epochs,
-                    callbacks=[early_stopping_callback, csv_logger_callback, scheduler_callback]
-                )
-
-                print(model.summary())
-
-                #  ====================log process==============================
-                # Append log of this time to log_content.
-                with open(log_path + arch_hash + '.csv', 'r', newline='') as csvfile:
-                    rows = csv.reader(csvfile)
-                    for i in rows:
-                        if i[0] == 'epoch':
-                            continue
-                        log_content.append(i)
-
-                # Write whole log_content to log file.
-                with open(log_path + arch_hash + '.csv', 'w', newline='') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerows(log_content)
-
-                # Write the match between architecture and log file name to dataset log file.
-                with open(log_path + dataset_name + '.csv', 'a', newline='') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow([str(arch[:layer_no + 1]), arch_hash + '.csv'])
-                # ==============================================================
-
-                # Pop the classifier
-                if layer_no + 1 != len(ori_model.layers):
-                    model = tf.keras.models.Sequential(model.layers[:-1])
-
+            # Add k+1 sublayer
+            model.add(ori_model.layers[layer_no])
+            # Skip when meet a pooling layer
+            while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
+                                                            'drop' in ori_model.layers[layer_no + 1].name or
+                                                            'activation' in ori_model.layers[layer_no + 1].name):
+                print(ori_model.layers[layer_no + 1].name, ' layer is not trainable so it will be added')
                 layer_no += 1
+                model.add(ori_model.layers[layer_no])
 
-        #model.evaluate(test_ds, verbose=2)
+            # Add classifier
+            model.add(tf.keras.Sequential([Classifier(num_classes)]))
+
+            for i in model.layers:
+                print(i.name, 'trainable:', i.trainable)
+
+            model.compile(optimizer=optimizer,
+                          loss=loss_object,
+                          metrics=['accuracy'])
+
+            # train a epochs for Look-Ahead phase
+            history = model.fit(
+                train_ds,
+                validation_data=val_ds,
+                epochs=look_ahead_epochs
+            )
+            print("Look-Ahead Finished.")
+
+            # train
+            for i in range(layer_no + 1):
+                model.layers[i].trainable = True
+
+            arch_hash = hashlib.shake_128((str(cell[0]) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
+            arch_count = 0
+            if arch_count_map.get(arch_hash) is not None:
+                arch_count_map[arch_hash] = arch_count_map[arch_hash] + 1
+                arch_count = arch_count_map.get(arch_hash)
+            else:
+                arch_count_map[arch_hash] = 0
+            arch_hash += '_' + str(arch_count)
+
+            # TODO define patience
+            early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
+                                                                       mode='min')
+            csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
+            scheduler_callback = tf.keras.callbacks.LearningRateScheduler(cosine_by_step_scheduler)
+            history = model.fit(
+                train_ds,
+                validation_data=val_ds,
+                epochs=epochs,
+                callbacks=[early_stopping_callback, csv_logger_callback, scheduler_callback]
+            )
+
+            print(model.summary())
+
+            #  ====================log process==============================
+            # Append log of this time to log_content.
+            with open(log_path + arch_hash + '.csv', 'r', newline='') as csvfile:
+                rows = csv.reader(csvfile)
+                for i in rows:
+                    if i[0] == 'epoch':
+                        continue
+                    log_content.append(i)
+
+            # Write whole log_content to log file.
+            with open(log_path + arch_hash + '.csv', 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerows(log_content)
+
+            # Write the match between architecture and log file name to dataset log file.
+            pkl_file = open(log_path + dataset_name + '.pkl', 'rb')
+            pkl_log = pickle.load(pkl_file)
+            pkl_file.close()
+            pkl_log.append({'matrix': matrix, 'ops': ops, 'layers': layer_no, 'log_file': arch_hash + '.csv'})
+            pkl_file = open(log_path + dataset_name + '.pkl', 'wb')
+            pickle.dump(pkl_log, pkl_file)
+            pkl_file.close()
+            # ==============================================================
+
+            # Pop the classifier
+            if layer_no + 1 != len(ori_model.layers):
+                model = tf.keras.models.Sequential(model.layers[:-1])
+
+            layer_no += 1
 
 
 def parse_args() -> Namespace:
@@ -228,7 +223,7 @@ def parse_args() -> Namespace:
     # train
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
-    parser.add_argument("--patience", type=int, default=2)
+    parser.add_argument("--patience", type=int, default=1)
 
     # model
     parser.add_argument("--num_layers", type=int, default=4)
@@ -250,4 +245,4 @@ def parse_args() -> Namespace:
 
 if __name__ == '__main__':
     args = parse_args()
-    incremental_training(args, amount_of_cell_layers=2, start=0, end=5)
+    incremental_training(args, cell_filename='./cell_list.pkl', start=0, end=5)
