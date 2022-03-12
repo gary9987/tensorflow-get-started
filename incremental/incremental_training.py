@@ -3,17 +3,16 @@ import pickle
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import Classifier, CustomModelForTest, CustomInceptionModel, CustomBranch
+from model import Classifier
 import numpy as np
 from keras.callbacks import CSVLogger
-from model_generator import model_generator
 import csv
 from pathlib import Path
 import hashlib
 from argparse import ArgumentParser, Namespace
 from model_builder import build_arch_model
 from model_spec import ModelSpec
-
+from os import path
 
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
@@ -33,11 +32,16 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size
     return ds.prefetch(buffer_size=autotune)
 
 
-def incremental_training(args, cell_filename, start=0, end=0):
+def incremental_training(args, cell_filename: str, start=0, end=0):
     """
+    :param args:
+    :param cell_filename:
+    :param start: The start cell index want to train
+    :param end: The end cell index want to train include end index
+    """
+
     # ==========================================================
-    Setting some parameters here.
-    """
+    #Setting some parameters here.
     dataset_name = args.dataset_name
     batch_size = args.batch_size
     AUTOTUNE = tf.data.AUTOTUNE
@@ -59,11 +63,11 @@ def incremental_training(args, cell_filename, start=0, end=0):
     arch_count_map = dict()
 
     Path(log_path).mkdir(parents=True, exist_ok=True)
-    with open(log_path + dataset_name + '.pkl', 'wb') as file:
+    pkl_count = 0
+    while path.exists(log_path + dataset_name + str(pkl_count) + '.pkl'):
+        pkl_count += 1
+    with open(log_path + dataset_name + str(pkl_count) + '.pkl', 'wb') as file:
         pickle.dump([], file)
-
-    # log content will store the training records of every architecture.
-    log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
 
     data_augmentation = tf.keras.Sequential([
         layers.Rescaling(1. / 255),
@@ -78,7 +82,6 @@ def incremental_training(args, cell_filename, start=0, end=0):
 
     train_ds = prepare(train_ds, data_augmentation, shuffle=True, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
     val_ds = prepare(val_ds, valid_augmentation, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
-    #test_ds = prepare(test_ds, valid_augmentation, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
 
     # cache the dataset on memory
     train_ds = train_ds.cache()
@@ -102,6 +105,9 @@ def incremental_training(args, cell_filename, start=0, end=0):
     file.close()
 
     for cell in cell_list[start: end+1]:
+        # log content will store the training records of every architecture.
+        log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
+
         matrix, ops = cell[0], cell[1]
 
         spec = ModelSpec(np.array(matrix), ops)
@@ -198,11 +204,11 @@ def incremental_training(args, cell_filename, start=0, end=0):
                 writer.writerows(log_content)
 
             # Write the match between architecture and log file name to dataset log file.
-            pkl_file = open(log_path + dataset_name + '.pkl', 'rb')
+            pkl_file = open(log_path + dataset_name + str(pkl_count) + '.pkl', 'rb')
             pkl_log = pickle.load(pkl_file)
             pkl_file.close()
             pkl_log.append({'matrix': matrix, 'ops': ops, 'layers': layer_no, 'log_file': arch_hash + '.csv'})
-            pkl_file = open(log_path + dataset_name + '.pkl', 'wb')
+            pkl_file = open(log_path + dataset_name + str(pkl_count) + '.pkl', 'wb')
             pickle.dump(pkl_log, pkl_file)
             pkl_file.close()
             # ==============================================================
@@ -221,7 +227,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
     # TODO change patience
-    parser.add_argument("--patience", type=int, default=1)
+    parser.add_argument("--patience", type=int, default=2)
 
     # optimizer
     parser.add_argument("--lr", type=float, default=0.1)
@@ -240,4 +246,4 @@ def parse_args() -> Namespace:
 
 if __name__ == '__main__':
     args = parse_args()
-    incremental_training(args, cell_filename='./cell_list.pkl', start=0, end=5)
+    incremental_training(args, cell_filename='./cell_list.pkl', start=0, end=1)
