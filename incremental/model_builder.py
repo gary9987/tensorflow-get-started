@@ -306,7 +306,7 @@ def build_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks
                                 channels=init_channel,
                                 is_training=is_training))
 
-    model.add(tf.keras.layers.GlobalAveragePooling2D(data_format=spec.data_format))
+    #model.add(tf.keras.layers.GlobalAveragePooling2D(data_format=spec.data_format))
     return model
 
 

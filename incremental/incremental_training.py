@@ -14,6 +14,7 @@ from model_builder import build_arch_model
 from model_spec import ModelSpec
 from os import path
 
+
 def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
     # ds = ds.map(lambda x, y: (resize_and_rescale(x), y), num_parallel_calls=AUTOTUNE)
@@ -87,8 +88,9 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     train_ds = train_ds.cache()
     val_ds = val_ds.cache()
 
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
     optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.lr, momentum=args.momentum, epsilon=1.0)
+    #optimizer = tf.keras.optimizers.Adam()
 
     # Custom learning rate scheduler
     def cosine_by_step_scheduler(epoch, lr):
@@ -146,7 +148,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 model.add(ori_model.layers[layer_no])
 
             # Add classifier
-            model.add(tf.keras.Sequential([Classifier(num_classes)]))
+            model.add(tf.keras.Sequential([Classifier(num_classes, spec.data_format)]))
 
             for i in model.layers:
                 print(i.name, 'trainable:', i.trainable)
@@ -162,11 +164,12 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 epochs=look_ahead_epochs
             )
             print("Look-Ahead Finished.")
-
+            #print(model.summary())
             # train
             for i in range(layer_no + 1):
                 model.layers[i].trainable = True
 
+            #print(model.summary())
             arch_hash = hashlib.shake_128((str(cell[0]) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
             arch_count = 0
             if arch_count_map.get(arch_hash) is not None:

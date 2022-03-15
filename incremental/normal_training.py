@@ -71,7 +71,7 @@ if __name__ == '__main__':
                        [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
                        [0, 0, 0, 0, 0, 0, 0]])
 
-    ops = ['INPUT', 'conv1x1-bn-relu', 'conv3x3-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
+    ops = ['INPUT', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu', 'conv1x1-bn-relu',
            'OUTPUT']
 
     spec = ModelSpec(matrix, ops)
