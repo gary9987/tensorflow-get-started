@@ -151,7 +151,6 @@ class CustomModelForTest(tf.keras.Model):
 class Classifier(tf.keras.Model):
     def __init__(self, classes, data_format='channels_last'):
         super(Classifier, self).__init__()
-        # TODO Test
         self.pool = tf.keras.layers.GlobalAveragePooling2D(data_format=data_format)
         self.flt = tf.keras.layers.Flatten()
         self.softmax = tf.keras.layers.Softmax()

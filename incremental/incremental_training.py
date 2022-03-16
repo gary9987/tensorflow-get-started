@@ -182,7 +182,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 model.layers[i].trainable = True
 
             # print(model.summary())
-            arch_hash = hashlib.shake_128((str(cell[0]) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
+            arch_hash = hashlib.shake_128((str(matrix) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
             arch_count = 0
             if arch_count_map.get(arch_hash) is not None:
                 arch_count_map[arch_hash] = arch_count_map[arch_hash] + 1
