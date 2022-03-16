@@ -33,6 +33,25 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size
     return ds.prefetch(buffer_size=autotune)
 
 
+class LrCustomCallback(tf.keras.callbacks.Callback):
+    def __init__(self, amount, batch_size, total_layers, optimizer):
+        super(LrCustomCallback, self).__init__()
+        self.global_step = 0
+        self.amount = amount
+        self.batch_size = batch_size
+        self.optimizer = optimizer
+        self.total_layers = total_layers
+        self.total_batches = int(self.total_layers * args.epochs * self.amount / self.batch_size)
+
+    def on_train_batch_end(self, batch, logs=None):
+        self.global_step += 1
+        progress_fraction = self.global_step / self.total_batches
+        learning_rate = (0.5 * args.lr *
+                         (1 + tf.cos(np.pi * progress_fraction)))
+        tf.keras.backend.set_value(self.optimizer.lr, learning_rate)
+        #print(self.optimizer.lr)
+
+
 def incremental_training(args, cell_filename: str, start=0, end=0):
     """
     :param args:
@@ -42,7 +61,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     """
 
     # ==========================================================
-    #Setting some parameters here.
+    # Setting some parameters here.
     dataset_name = args.dataset_name
     batch_size = args.batch_size
     AUTOTUNE = tf.data.AUTOTUNE
@@ -81,32 +100,19 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
         layers.CenterCrop(28, 28)
     ])
 
-    train_ds = prepare(train_ds, data_augmentation, shuffle=True, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
+    train_ds = prepare(train_ds, data_augmentation, shuffle=True, augment=True, batch_size=batch_size,
+                       autotune=AUTOTUNE)
     val_ds = prepare(val_ds, valid_augmentation, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
 
     # cache the dataset on memory
     train_ds = train_ds.cache()
     val_ds = val_ds.cache()
 
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
-    optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.lr, momentum=args.momentum, epsilon=1.0)
-    #optimizer = tf.keras.optimizers.Adam()
-
-    # Custom learning rate scheduler
-    def cosine_by_step_scheduler(epoch, lr):
-        total_steps = int(args.epochs * metadata.splits['train'].num_examples /
-                          args.batch_size)
-        global_step = epoch * metadata.splits['train'].num_examples / args.batch_size
-        progress_fraction = global_step / total_steps
-        learning_rate = (0.5 * args.lr *
-                         (1 + tf.cos(np.pi * progress_fraction)))
-        return learning_rate
-
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
     file.close()
 
-    for cell in cell_list[start: end+1]:
+    for cell in cell_list[start: end + 1]:
         # log content will store the training records of every architecture.
         log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
 
@@ -121,8 +127,14 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
 
         print(ori_model.summary())
 
-        model = tf.keras.Sequential()
+        loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
+        optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.lr, momentum=args.momentum, epsilon=1.0)
+        lr_scheduler_callback = LrCustomCallback(metadata.splits['train'].num_examples,
+                                                 args.batch_size,
+                                                 len(ori_model.layers),
+                                                 optimizer)
 
+        model = tf.keras.Sequential()
         model.compile(optimizer=optimizer,
                       loss=loss_object,
                       metrics=['accuracy'])
@@ -164,12 +176,12 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 epochs=look_ahead_epochs
             )
             print("Look-Ahead Finished.")
-            #print(model.summary())
+            # print(model.summary())
             # train
             for i in range(layer_no + 1):
                 model.layers[i].trainable = True
 
-            #print(model.summary())
+            # print(model.summary())
             arch_hash = hashlib.shake_128((str(cell[0]) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
             arch_count = 0
             if arch_count_map.get(arch_hash) is not None:
@@ -182,12 +194,11 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
             early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
                                                                        mode='min')
             csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
-            scheduler_callback = tf.keras.callbacks.LearningRateScheduler(cosine_by_step_scheduler)
             history = model.fit(
                 train_ds,
                 validation_data=val_ds,
                 epochs=epochs,
-                callbacks=[early_stopping_callback, csv_logger_callback, scheduler_callback]
+                callbacks=[early_stopping_callback, csv_logger_callback, lr_scheduler_callback]
             )
 
             print(model.summary())
@@ -230,10 +241,10 @@ def parse_args() -> Namespace:
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
     # TODO change patience
-    parser.add_argument("--patience", type=int, default=2)
+    parser.add_argument("--patience", type=int, default=3)
 
     # optimizer
-    parser.add_argument("--lr", type=float, default=0.1)
+    parser.add_argument("--lr", type=float, default=1e-1)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--momentum", type=float, default=0.9)
 
@@ -249,4 +260,4 @@ def parse_args() -> Namespace:
 
 if __name__ == '__main__':
     args = parse_args()
-    incremental_training(args, cell_filename='./cell_list.pkl', start=0, end=1)
+    incremental_training(args, cell_filename='./cell_list.pkl', start=0, end=0)
