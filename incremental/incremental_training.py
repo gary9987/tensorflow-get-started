@@ -1,5 +1,4 @@
 import pickle
-
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers

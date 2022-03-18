@@ -6,6 +6,7 @@ from model_generator import model_generator
 from model_spec import ModelSpec
 from model_builder import CellModel, build_arch_model
 import numpy as np
+from keras.callbacks import CSVLogger
 
 batch_size = 128
 AUTOTUNE = tf.data.AUTOTUNE
@@ -58,16 +59,16 @@ if __name__ == '__main__':
     train_ds = train_ds.cache()
     val_ds = val_ds.cache()
 
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    optimizer = tf.keras.optimizers.Adam()
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
+    optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.1, momentum=0.9, epsilon=1.0)
 
     # Create an instance of the model
     model = tf.keras.Sequential()
-    matrix = np.array([[0, 1, 1, 1, 0, 1, 0],  # input layer
-                       [0, 0, 0, 0, 0, 0, 1],  # 1x1 conv
-                       [0, 0, 0, 0, 0, 0, 1],  # 3x3 conv
-                       [0, 0, 0, 0, 1, 0, 0],  # 5x5 conv (replaced by two 3x3's)
-                       [0, 0, 0, 0, 0, 0, 1],  # 5x5 conv (replaced by two 3x3's)
+    matrix = np.array([[0, 0, 0, 0, 0, 1, 0],  # input layer
+                       [0, 0, 0, 0, 0, 0, 0],  # 1x1 conv
+                       [0, 0, 0, 0, 0, 0, 0],  # 3x3 conv
+                       [0, 0, 0, 0, 0, 0, 0],  # 5x5 conv (replaced by two 3x3's)
+                       [0, 0, 0, 0, 0, 0, 0],  # 5x5 conv (replaced by two 3x3's)
                        [0, 0, 0, 0, 0, 0, 1],  # 3x3 max-pool
                        [0, 0, 0, 0, 0, 0, 0]])
 
@@ -84,13 +85,14 @@ if __name__ == '__main__':
               loss=loss_object,
               metrics=['accuracy'])
 
-    epochs = 10
-    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, mode='min')
+    epochs = 91
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, mode='min')
+    csv_logger_callback = CSVLogger('./normal_training_log.csv', append=False, separator=',')
     history = model.fit(
         train_ds,
         validation_data=val_ds,
         epochs=epochs,
-        callbacks=[early_stopping_callback]
+        callbacks=[early_stopping_callback, csv_logger_callback]
     )
 
     model.evaluate(test_ds, verbose=2)
