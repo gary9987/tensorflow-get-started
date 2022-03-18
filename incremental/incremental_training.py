@@ -35,20 +35,18 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size
 class LrCustomCallback(tf.keras.callbacks.Callback):
     def __init__(self, amount, batch_size, total_layers, optimizer):
         super(LrCustomCallback, self).__init__()
-        self.global_step = 0
-        self.amount = amount
-        self.batch_size = batch_size
+        self.global_batch = 0
         self.optimizer = optimizer
-        self.total_layers = total_layers
-        self.total_batches = int(self.total_layers * args.epochs * self.amount / self.batch_size)
+        self.total_batches = int(total_layers * args.epochs * amount / batch_size)
 
     def on_train_batch_end(self, batch, logs=None):
-        self.global_step += 1
-        progress_fraction = self.global_step / self.total_batches
-        learning_rate = (0.5 * args.lr *
-                         (1 + tf.cos(np.pi * progress_fraction)))
+        self.global_batch += 1
+        progress_fraction = self.global_batch / self.total_batches
+        learning_rate = (0.5 * args.lr * (1 + tf.cos(np.pi * progress_fraction)))
         tf.keras.backend.set_value(self.optimizer.lr, learning_rate)
-        #print(self.optimizer.lr)
+
+    def on_epoch_begin(self, epoch, logs=None):
+        print('Learning Rate: ', tf.keras.backend.eval(self.optimizer.lr))
 
 
 def incremental_training(args, cell_filename: str, start=0, end=0):
@@ -141,7 +139,6 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
         # layer_no start from 0 which is the first layer
         layer_no = 0
         while layer_no < len(ori_model.layers):
-            print(layer_no)
 
             # freeze the pre layer for look-ahead process
             for i in range(layer_no):

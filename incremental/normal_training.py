@@ -1,14 +1,13 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tensorflow.keras import layers
-from model import CustomModelForTest, Classifier, CustomInceptionModel
-from model_generator import model_generator
+from model import Classifier
 from model_spec import ModelSpec
 from model_builder import CellModel, build_arch_model
 import numpy as np
 from keras.callbacks import CSVLogger
 
-batch_size = 128
+batch_size = 256
 AUTOTUNE = tf.data.AUTOTUNE
 
 
@@ -28,6 +27,23 @@ def prepare(ds, data_augmentation=None, shuffle=False, augment=False):
 
     # Use buffered prefetching on all datasets.
     return ds.prefetch(buffer_size=AUTOTUNE)
+
+
+class LrCustomCallback(tf.keras.callbacks.Callback):
+    def __init__(self, amount, batch_size, total_layers, optimizer):
+        super(LrCustomCallback, self).__init__()
+        self.global_batch = 0
+        self.optimizer = optimizer
+        self.total_batches = int(total_layers * 20 * amount / batch_size)
+
+    def on_train_batch_end(self, batch, logs=None):
+        self.global_batch += 1
+        progress_fraction = self.global_batch / self.total_batches
+        learning_rate = (0.5 * 0.1 * (1 + tf.cos(np.pi * progress_fraction)))
+        tf.keras.backend.set_value(self.optimizer.lr, learning_rate)
+
+    def on_epoch_begin(self, epoch, logs=None):
+        print('Learning Rate: ', tf.keras.backend.eval(self.optimizer.lr))
 
 
 if __name__ == '__main__':
@@ -85,14 +101,18 @@ if __name__ == '__main__':
               loss=loss_object,
               metrics=['accuracy'])
 
-    epochs = 91
-    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, mode='min')
+    epochs = 20 * 12
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, mode='min')
     csv_logger_callback = CSVLogger('./normal_training_log.csv', append=False, separator=',')
+    lr_scheduler_callback = LrCustomCallback(metadata.splits['train'].num_examples,
+                                             batch_size,
+                                             12,
+                                             optimizer)
     history = model.fit(
         train_ds,
         validation_data=val_ds,
         epochs=epochs,
-        callbacks=[early_stopping_callback, csv_logger_callback]
+        callbacks=[early_stopping_callback, csv_logger_callback, lr_scheduler_callback]
     )
 
     model.evaluate(test_ds, verbose=2)
