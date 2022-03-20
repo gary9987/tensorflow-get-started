@@ -13,7 +13,6 @@ from model_builder import build_arch_model
 from model_spec import ModelSpec
 from os import path
 from augmentation import Augmentation
-from matplotlib import pyplot as plt
 
 
 def prepare(ds, seed, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
@@ -242,7 +241,7 @@ def parse_args() -> Namespace:
     # data
     parser.add_argument("--dataset_name", type=str, default='cifar10')
     parser.add_argument("--batch_size", type=int, default=256)
-    # inputs_shape need to match with dataset
+    # IMPORTANT: inputs_shape need to match with dataset
     parser.add_argument("--inputs_shape", type=tuple, default=(None, 32, 32, 3))
 
     args = parser.parse_args()
