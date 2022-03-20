@@ -12,24 +12,26 @@ from argparse import ArgumentParser, Namespace
 from model_builder import build_arch_model
 from model_spec import ModelSpec
 from os import path
+from augmentation import Augmentation
+from matplotlib import pyplot as plt
 
 
-def prepare(ds, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
+def prepare(ds, seed, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
     # ds = ds.map(lambda x, y: (resize_and_rescale(x), y), num_parallel_calls=AUTOTUNE)
 
     if shuffle:
-        ds = ds.shuffle(1000)
+        ds = ds.shuffle(buffer_size=1000, seed=seed)
 
     # Batch all datasets.
     ds = ds.batch(batch_size)
 
     # Use data augmentation only on the training set.
     if augment:
-        ds = ds.map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=autotune)
+        ds = ds.map(lambda x, y: (data_augmentation(x), y), num_parallel_calls=autotune)
 
     # Use buffered prefetching on all datasets.
-    return ds.prefetch(buffer_size=autotune)
+    return ds.prefetch(buffer_size=autotune).cache()
 
 
 class LrCustomCallback(tf.keras.callbacks.Callback):
@@ -86,24 +88,15 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     with open(log_path + dataset_name + str(pkl_count) + '.pkl', 'wb') as file:
         pickle.dump([], file)
 
-    data_augmentation = tf.keras.Sequential([
-        layers.Rescaling(1. / 255),
-        layers.RandomRotation(0.2),
-        layers.CenterCrop(28, 28)
-    ])
-
-    valid_augmentation = tf.keras.Sequential([
-        layers.Rescaling(1. / 255),
-        layers.CenterCrop(28, 28)
-    ])
-
-    train_ds = prepare(train_ds, data_augmentation, shuffle=True, augment=True, batch_size=batch_size,
+    augmentation = Augmentation(args.seed)
+    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation('cifar10', True), shuffle=True, augment=True, batch_size=batch_size,
                        autotune=AUTOTUNE)
-    val_ds = prepare(val_ds, valid_augmentation, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
+    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation('cifar10', False), augment=True, batch_size=batch_size, autotune=AUTOTUNE)
 
     # cache the dataset on memory
-    train_ds = train_ds.cache()
-    val_ds = val_ds.cache()
+    # 2022/03/20 Update cache() move to prepare() function
+    # train_ds = train_ds.cache()
+    # val_ds = val_ds.cache()
 
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
@@ -233,6 +226,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
 
+    parser.add_argument("--seed", type=int, default=0)
     # train
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
@@ -245,10 +239,10 @@ def parse_args() -> Namespace:
     parser.add_argument("--momentum", type=float, default=0.9)
 
     # data
-    parser.add_argument("--dataset_name", type=str, default='mnist')
+    parser.add_argument("--dataset_name", type=str, default='cifar10')
     parser.add_argument("--batch_size", type=int, default=256)
     # inputs_shape need to match with dataset
-    parser.add_argument("--inputs_shape", type=tuple, default=(None, 28, 28, 1))
+    parser.add_argument("--inputs_shape", type=tuple, default=(None, 32, 32, 3))
 
     args = parser.parse_args()
     return args

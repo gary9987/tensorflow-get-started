@@ -71,6 +71,7 @@ class CropAndResize(layers.Layer):
     def call(self, x):
         return self.crop_and_resize(x)
 
+
 def eval_preprocessing():
     """
     Evaluating preprocessing layer

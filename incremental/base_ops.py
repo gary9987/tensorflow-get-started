@@ -45,7 +45,7 @@ class ConvBnRelu(tf.keras.layers.Layer):
             kernel_size=conv_size,
             strides=(1, 1),
             use_bias=False,
-            kernel_initializer=tf.compat.v1.variance_scaling_initializer(),
+            kernel_initializer=tf.keras.initializers.VarianceScaling(),
             padding='same',
             data_format=data_format)
 
