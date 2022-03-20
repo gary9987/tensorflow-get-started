@@ -83,9 +83,10 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
 
     Path(log_path).mkdir(parents=True, exist_ok=True)
     pkl_count = 0
-    while path.exists(log_path + dataset_name + str(pkl_count) + '.pkl'):
+    while path.exists(log_path + dataset_name + '_' + str(pkl_count) + '.pkl'):
         pkl_count += 1
-    with open(log_path + dataset_name + str(pkl_count) + '.pkl', 'wb') as file:
+    pkl_path = log_path + dataset_name + '_' + str(pkl_count) + '.pkl'
+    with open(pkl_path, 'wb') as file:
         pickle.dump([], file)
 
     augmentation = Augmentation(args.seed)
@@ -207,11 +208,11 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 writer.writerows(log_content)
 
             # Write the match between architecture and log file name to dataset log file.
-            pkl_file = open(log_path + dataset_name + str(pkl_count) + '.pkl', 'rb')
+            pkl_file = open(pkl_path, 'rb')
             pkl_log = pickle.load(pkl_file)
             pkl_file.close()
             pkl_log.append({'matrix': matrix, 'ops': ops, 'layers': layer_no, 'log_file': arch_hash + '.csv'})
-            pkl_file = open(log_path + dataset_name + str(pkl_count) + '.pkl', 'wb')
+            pkl_file = open(pkl_path, 'wb')
             pickle.dump(pkl_log, pkl_file)
             pkl_file.close()
             # ==============================================================
