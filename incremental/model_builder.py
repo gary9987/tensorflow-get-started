@@ -19,20 +19,21 @@ from model_spec import ModelSpec
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
-    """Computes the number of channels at every vertex.
-  Given the input channels and output channels, this calculates the number of
-  channels at each interior vertex. Interior vertices have the same number of
-  channels as the max of the channels of the vertices it feeds into. The output
-  channels are divided amongst the vertices that are directly connected to it.
-  When the division is not even, some vertices may receive an extra channel to
-  compensate.
-  Args:
-    input_channels: input channel count.
-    output_channels: output channel count.
-    matrix: adjacency matrix for the module (pruned by model_spec).
-  Returns:
-    list of channel counts, in order of the vertices.
-  """
+    """
+    Computes the number of channels at every vertex.
+    Given the input channels and output channels, this calculates the number of
+    channels at each interior vertex. Interior vertices have the same number of
+    channels as the max of the channels of the vertices it feeds into. The output
+    channels are divided amongst the vertices that are directly connected to it.
+    When the division is not even, some vertices may receive an extra channel to
+    compensate.
+    Args:
+        input_channels: input channel count.
+        output_channels: output channel count.
+        matrix: adjacency matrix for the module (pruned by model_spec).
+    Returns:
+        list of channel counts, in order of the vertices.
+    """
     num_vertices = np.shape(matrix)[0]
 
     vertex_channels = [0] * num_vertices
@@ -85,9 +86,7 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
 
 def projection(channels, is_training, data_format):
     """1x1 projection (as in ResNet) followed by batch normalization and ReLU."""
-    with tf.compat.v1.variable_scope('projection'):
-        net = base_ops.ConvBnRelu(1, channels, is_training, data_format)
-    return net
+    return base_ops.ConvBnRelu(1, channels, is_training, data_format)
 
 
 def truncate(inputs_shape, inputs, channels, data_format):
@@ -143,20 +142,19 @@ class CellModel(tf.keras.Model):
         self.tensors = [inputs_shape]
 
         for t in range(1, self.num_vertices - 1):
-            with tf.compat.v1.variable_scope('vertex_{}'.format(t)):
 
-                # Create add connection from projected input
-                if self.spec.matrix[0, t]:
-                    self.proj_list[t] = projection(
-                        self.vertex_channels[t],
-                        self.is_training,
-                        self.spec.data_format)
+            # Create add connection from projected input
+            if self.spec.matrix[0, t]:
+                self.proj_list[t] = projection(
+                    self.vertex_channels[t],
+                    self.is_training,
+                    self.spec.data_format)
 
-                    # Perform op at vertex t
-                op = base_ops.OP_MAP[self.spec.ops[t]](
-                    is_training=self.is_training,
-                    data_format=self.spec.data_format)
-                self.ops[t] = op.build(self.vertex_channels[t])
+                # Perform op at vertex t
+            op = base_ops.OP_MAP[self.spec.ops[t]](
+                is_training=self.is_training,
+                data_format=self.spec.data_format)
+            self.ops[t] = op.build(self.vertex_channels[t])
 
             t_shape = list(inputs_shape)
             t_shape[self.channel_axis] = self.vertex_channels[t]
@@ -169,11 +167,11 @@ class CellModel(tf.keras.Model):
         if not final_concat_in:
             # No interior vertices, input directly connected to output
             assert spec.matrix[0, self.num_vertices - 1]
-            with tf.compat.v1.variable_scope('output'):
-                self.outputs1 = projection(
-                    self.channels,
-                    self.is_training,
-                    self.spec.data_format)
+
+            self.outputs1 = projection(
+                self.channels,
+                self.is_training,
+                self.spec.data_format)
 
         else:
             if self.spec.matrix[0, self.num_vertices - 1]:
@@ -188,22 +186,22 @@ class CellModel(tf.keras.Model):
         final_concat_in = []
 
         for t in range(1, self.num_vertices - 1):
-            with tf.compat.v1.variable_scope('vertex_{}'.format(t)):
-                # Create interior connections, truncating if necessary
-                add_in = [truncate(self.tensors[src], tensors[src], self.vertex_channels[t], self.spec.data_format)
-                          for src in range(1, t) if self.spec.matrix[src, t]]
 
-                # Create add connection from projected input
-                if self.spec.matrix[0, t]:
-                    add_in.append(self.proj_list[t](tensors[0]))
+            # Create interior connections, truncating if necessary
+            add_in = [truncate(self.tensors[src], tensors[src], self.vertex_channels[t], self.spec.data_format)
+                      for src in range(1, t) if self.spec.matrix[src, t]]
 
-                if len(add_in) == 1:
-                    vertex_input = add_in[0]
-                else:
-                    vertex_input = tf.add_n(add_in)
+            # Create add connection from projected input
+            if self.spec.matrix[0, t]:
+                add_in.append(self.proj_list[t](tensors[0]))
 
-                # Perform op at vertex t
-                vertex_value = self.ops[t](vertex_input)
+            if len(add_in) == 1:
+                vertex_input = add_in[0]
+            else:
+                vertex_input = tf.add_n(add_in)
+
+            # Perform op at vertex t
+            vertex_value = self.ops[t](vertex_input)
 
             tensors.append(vertex_value)
             if self.spec.matrix[t, self.num_vertices - 1]:
@@ -213,8 +211,7 @@ class CellModel(tf.keras.Model):
         if not final_concat_in:
             # No interior vertices, input directly connected to output
             assert spec.matrix[0, self.num_vertices - 1]
-            with tf.compat.v1.variable_scope('output'):
-                outputs = self.outputs1(tensors[0])
+            outputs = self.outputs1(tensors[0])
         else:
             if len(final_concat_in) == 1:
                 outputs = final_concat_in[0]

@@ -17,12 +17,9 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
 import abc
-
-import keras.layers
 import tensorflow as tf
-from keras import layers
+
 
 # Currently, only channels_last is well supported.
 VALID_DATA_FORMATS = frozenset(['channels_last', 'channels_first'])
@@ -109,12 +106,12 @@ class BaseOp(object):
     @abc.abstractmethod
     def build(self, channels):
         """Builds the operation with input tensors and returns an output tensor.
-    Args:
-      channels: int number of output channels of operation. The operation may
-        choose to ignore this parameter.
-    Returns:
-      a 4-D Tensor with the same data format.
-    """
+        Args:
+          channels: int number of output channels of operation. The operation may
+            choose to ignore this parameter.
+        Returns:
+          a 4-D Tensor with the same data format.
+        """
         pass
 
 
@@ -123,25 +120,21 @@ class Identity(BaseOp):
 
     def build(self, channels):
         del channels  # Unused
-        return keras.layers.Lambda(lambda x: x, name='Identity')
+        return tf.keras.layers.Lambda(lambda x: x, name='Identity')
 
 
 class Conv3x3BnRelu(BaseOp):
     """3x3 convolution with batch norm and ReLU activation."""
 
     def build(self, channels):
-        with tf.compat.v1.variable_scope('Conv3x3-BN-ReLU'):
-            net = ConvBnRelu(3, channels, self.is_training, self.data_format)
-        return net
+        return ConvBnRelu(3, channels, self.is_training, self.data_format)
 
 
 class Conv1x1BnRelu(BaseOp):
     """1x1 convolution with batch norm and ReLU activation."""
 
     def build(self, channels):
-        with tf.compat.v1.variable_scope('Conv1x1-BN-ReLU'):
-            net = ConvBnRelu(1, channels, self.is_training, self.data_format)
-        return net
+        return ConvBnRelu(1, channels, self.is_training, self.data_format)
 
 
 class MaxPool3x3(BaseOp):
@@ -149,12 +142,11 @@ class MaxPool3x3(BaseOp):
 
     def build(self, channels):
         del channels  # Unused
-        with tf.compat.v1.variable_scope('MaxPool3x3'):
-            net = tf.keras.layers.MaxPool2D(
-                pool_size=(3, 3),
-                strides=(1, 1),
-                padding='same',
-                data_format=self.data_format)
+        net = tf.keras.layers.MaxPool2D(
+            pool_size=(3, 3),
+            strides=(1, 1),
+            padding='same',
+            data_format=self.data_format)
 
         return net
 
@@ -212,7 +204,7 @@ OP_MAP = {
     'identity': Identity,
     'conv3x3-bn-relu': Conv3x3BnRelu,
     'conv1x1-bn-relu': Conv1x1BnRelu,
-    'maxpool3x3': MaxPool3x3 #,
+    'maxpool3x3': MaxPool3x3
     #'bottleneck3x3': BottleneckConv3x3,
     #'bottleneck5x5': BottleneckConv5x5,
     #'maxpool3x3-conv1x1': MaxPool3x3Conv1x1,
