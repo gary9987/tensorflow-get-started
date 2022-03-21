@@ -1,7 +1,7 @@
 import pickle
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from tensorflow.keras import layers
+import random
 from model import Classifier
 import numpy as np
 from keras.callbacks import CSVLogger
@@ -67,6 +67,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     epochs = args.epochs
     look_ahead_epochs = args.look_ahead_epochs
     inputs_shape = args.inputs_shape
+    tf.keras.utils.set_random_seed(args.seed)
     # ==========================================================
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
@@ -89,9 +90,9 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
         pickle.dump([], file)
 
     augmentation = Augmentation(args.seed)
-    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation('cifar10', True), shuffle=True, augment=True, batch_size=batch_size,
+    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation('cifar10', True), shuffle=False, augment=True, batch_size=batch_size,
                        autotune=AUTOTUNE)
-    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation('cifar10', False), augment=True, batch_size=batch_size, autotune=AUTOTUNE)
+    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation('cifar10', False), augment=False, batch_size=batch_size, autotune=AUTOTUNE)
 
     # cache the dataset on memory
     # 2022/03/20 Update cache() move to prepare() function
@@ -101,8 +102,11 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
     file.close()
+    random.seed(args.seed)
+    random.shuffle(cell_list)
 
     for cell in cell_list[start: end + 1]:
+        print('Running on Cell:', cell)
         # log content will store the training records of every architecture.
         log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
 
@@ -125,9 +129,6 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                                                  optimizer)
 
         model = tf.keras.Sequential()
-        model.compile(optimizer=optimizer,
-                      loss=loss_object,
-                      metrics=['accuracy'])
 
         # layer_no start from 0 which is the first layer
         layer_no = 0
@@ -169,6 +170,10 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
             # train
             for i in range(layer_no + 1):
                 model.layers[i].trainable = True
+
+            model.compile(optimizer=optimizer,
+                          loss=loss_object,
+                          metrics=['accuracy'])
 
             # print(model.summary())
             arch_hash = hashlib.shake_128((str(matrix) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
