@@ -12,7 +12,21 @@ from argparse import ArgumentParser, Namespace
 from model_builder import build_arch_model
 from model_spec import ModelSpec
 from os import path
+import os
 from augmentation import Augmentation
+from matplotlib import pyplot as plt
+
+def set_seeds(seed):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    tf.random.set_seed(seed)
+    np.random.seed(seed)
+
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
+    os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
+
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+    tf.config.threading.set_intra_op_parallelism_threads(1)
 
 
 def prepare(ds, seed, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
@@ -67,7 +81,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     epochs = args.epochs
     look_ahead_epochs = args.look_ahead_epochs
     inputs_shape = args.inputs_shape
-    tf.keras.utils.set_random_seed(args.seed)
+    set_seeds(args.seed)
     # ==========================================================
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
@@ -90,14 +104,18 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
         pickle.dump([], file)
 
     augmentation = Augmentation(args.seed)
-    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation('cifar10', True), shuffle=False, augment=True, batch_size=batch_size,
-                       autotune=AUTOTUNE)
-    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation('cifar10', False), augment=False, batch_size=batch_size, autotune=AUTOTUNE)
+    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation('cifar10', True),
+                       shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
+    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation('cifar10', False),
+                     shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
 
     # cache the dataset on memory
     # 2022/03/20 Update cache() move to prepare() function
     # train_ds = train_ds.cache()
     # val_ds = val_ds.cache()
+    for images, labels in train_ds:
+        plt.imshow(images[0].numpy())
+        plt.show()
 
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
@@ -246,6 +264,7 @@ def parse_args() -> Namespace:
     # data
     parser.add_argument("--dataset_name", type=str, default='cifar10')
     parser.add_argument("--batch_size", type=int, default=256)
+
     # IMPORTANT: inputs_shape need to match with dataset
     parser.add_argument("--inputs_shape", type=tuple, default=(None, 32, 32, 3))
 
