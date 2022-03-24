@@ -92,10 +92,15 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
     )
     num_classes = metadata.features['label'].num_classes
 
+    Path(log_path).mkdir(parents=True, exist_ok=True)
+
     # The dict is to record amount of the times which the arch appear
     arch_count_map = dict()
+    if path.exists(log_path + 'arch_count_map.pkl'):
+        file = open(log_path + 'arch_count_map.pkl', 'rb')
+        arch_count_map = pickle.load(file)
+        file.close()
 
-    Path(log_path).mkdir(parents=True, exist_ok=True)
     pkl_count = 0
     while path.exists(log_path + dataset_name + '_' + str(pkl_count) + '.pkl'):
         pkl_count += 1
@@ -104,18 +109,20 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
         pickle.dump([], file)
 
     augmentation = Augmentation(args.seed)
-    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation('cifar10', True),
-                       shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
-    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation('cifar10', False),
+    train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation(dataset_name, training=True),
+                       shuffle=True, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
+    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation(dataset_name, training= False),
                      shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
 
     # cache the dataset on memory
     # 2022/03/20 Update cache() move to prepare() function
     # train_ds = train_ds.cache()
     # val_ds = val_ds.cache()
+    '''
     for images, labels in train_ds:
         plt.imshow(images[0].numpy())
         plt.show()
+    '''
 
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
@@ -201,6 +208,8 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 arch_count = arch_count_map.get(arch_hash)
             else:
                 arch_count_map[arch_hash] = 0
+            with open(log_path + 'arch_count_map.pkl', 'wb') as file:
+                pickle.dump(arch_count_map, file)
             arch_hash += '_' + str(arch_count)
 
             early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
@@ -213,7 +222,8 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
                 callbacks=[early_stopping_callback, csv_logger_callback, lr_scheduler_callback]
             )
 
-            print(model.summary())
+            print(log_path + arch_hash + '.csv')
+            #print(model.summary())
 
             #  ====================log process==============================
             # Append log of this time to log_content.
@@ -236,6 +246,7 @@ def incremental_training(args, cell_filename: str, start=0, end=0):
             pkl_log.append({'matrix': matrix, 'ops': ops, 'layers': layer_no, 'log_file': arch_hash + '.csv'})
             pkl_file = open(pkl_path, 'wb')
             pickle.dump(pkl_log, pkl_file)
+            print(pkl_path)
             pkl_file.close()
             # ==============================================================
 
@@ -254,7 +265,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
     # TODO change patience
-    parser.add_argument("--patience", type=int, default=3)
+    parser.add_argument("--patience", type=int, default=8)
 
     # optimizer
     parser.add_argument("--lr", type=float, default=1e-1)
