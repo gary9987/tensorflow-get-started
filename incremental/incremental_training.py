@@ -112,9 +112,10 @@ def incremental_training(args, cell_filename: str):
     augmentation = Augmentation(args.seed)
     train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation(dataset_name, training=True),
                        shuffle=True, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
-    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation(dataset_name, training= False),
+    val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation(dataset_name, training=False),
                      shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
-
+    test_ds = prepare(test_ds, args.seed, augmentation.get_augmentation(dataset_name, training=False),
+                     shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
     # cache the dataset on memory
     # 2022/03/20 Update cache() move to prepare() function
     # train_ds = train_ds.cache()
@@ -134,7 +135,7 @@ def incremental_training(args, cell_filename: str):
     for cell in cell_list[start: end + 1]:
         print('Running on Cell:', cell)
         # log content will store the training records of every architecture.
-        log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss']]
+        log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss', 'test_loss', 'test_acc']]
 
         matrix, ops = cell[0], cell[1]
 
@@ -226,6 +227,9 @@ def incremental_training(args, cell_filename: str):
             print(log_path + arch_hash + '.csv')
             #print(model.summary())
 
+            test_results = model.evaluate(test_ds, batch_size=256)
+            test_loss, test_acc = test_results[0], test_results[1]
+
             #  ====================log process==============================
             # Append log of this time to log_content.
             with open(log_path + arch_hash + '.csv', 'r', newline='') as csvfile:
@@ -233,7 +237,7 @@ def incremental_training(args, cell_filename: str):
                 for i in rows:
                     if i[0] == 'epoch':
                         continue
-                    log_content.append(i)
+                    log_content.append(i + [test_loss, test_acc])
 
             # Write whole log_content to log file.
             with open(log_path + arch_hash + '.csv', 'w', newline='') as csvfile:
