@@ -16,6 +16,15 @@ import os
 from augmentation import Augmentation
 from matplotlib import pyplot as plt
 
+
+def tuple_type(strings):
+    strings = strings.replace("(", "").replace(")", "")
+    mapped_int = map(int, strings.split(","))
+    ret = list(mapped_int)
+    ret[0] = None
+    return tuple(ret)
+
+
 def set_seeds(seed):
     os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
@@ -285,7 +294,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--batch_size", type=int, default=256)
 
     # IMPORTANT: inputs_shape need to match with dataset
-    parser.add_argument("--inputs_shape", type=tuple, default=(None, 32, 32, 3))
+    parser.add_argument("--inputs_shape", type=tuple_type, default="-1, 32, 32, 3")
 
     args = parser.parse_args()
     return args
