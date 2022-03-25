@@ -64,16 +64,17 @@ class LrCustomCallback(tf.keras.callbacks.Callback):
         print('Learning Rate: ', tf.keras.backend.eval(self.optimizer.lr))
 
 
-def incremental_training(args, cell_filename: str, start=0, end=0):
+def incremental_training(args, cell_filename: str):
     """
     :param args:
     :param cell_filename:
     :param start: The start cell index want to train
     :param end: The end cell index want to train include end index
     """
-
     # ==========================================================
     # Setting some parameters here.
+    start = args.start
+    end = args.end
     dataset_name = args.dataset_name
     batch_size = args.batch_size
     AUTOTUNE = tf.data.AUTOTUNE
@@ -261,6 +262,9 @@ def parse_args() -> Namespace:
     parser = ArgumentParser()
 
     parser.add_argument("--seed", type=int, default=0)
+    # Set start end
+    parser.add_argument("--start", type=int, default=0)
+    parser.add_argument("--end", type=int, default=0)
     # train
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
@@ -285,4 +289,4 @@ def parse_args() -> Namespace:
 
 if __name__ == '__main__':
     args = parse_args()
-    incremental_training(args, cell_filename='./cell_list.pkl', start=0, end=0)
+    incremental_training(args, cell_filename='./cell_list.pkl')
