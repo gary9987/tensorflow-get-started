@@ -188,7 +188,7 @@ def incremental_training(args, cell_filename: str):
 
     # Auto download if cell_list.pkl is not exist
     if not path.exists(cell_filename):
-        os.system('sh downloads.sh')
+        os.system('sh download.sh')
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
     file.close()
