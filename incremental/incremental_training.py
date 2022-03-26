@@ -76,6 +76,49 @@ class LrCustomCallback(tf.keras.callbacks.Callback):
         print('Learning Rate: ', tf.keras.backend.eval(self.optimizer.lr))
 
 
+def clean_residual_file(arch_count_map, cell, log_path, inputs_shape):
+
+    logging.info('Cleaning residual file last round...')
+    print('Cleaning residual file last round...')
+
+    matrix, ops = cell[0], cell[1]
+
+    spec = ModelSpec(np.array(matrix), ops)
+    ori_model = build_arch_model(spec, inputs_shape)
+    ori_model.build([*inputs_shape])
+
+    # layer_no start from 0 which is the first layer
+    layer_no = 0
+    while layer_no < len(ori_model.layers):
+        # Skip when meet a pooling layer
+        while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
+                                                        'drop' in ori_model.layers[layer_no + 1].name or
+                                                        'activation' in ori_model.layers[layer_no + 1].name):
+            layer_no += 1
+
+        # print(model.summary())
+        arch_hash = hashlib.shake_128((str(matrix) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
+        try:
+            arch_count = str(arch_count_map[arch_hash])
+        except:
+            arch_count = '0'
+
+        if path.exists( log_path + arch_hash + '_' + arch_count + '.csv'):
+            logging.info('rm {}{}_{}.csv'.format(log_path, arch_hash, arch_count))
+            print('rm {}{}_{}.csv'.format(log_path, arch_hash, arch_count))
+            os.system('rm ' + log_path + arch_hash + '_' + arch_count + '.csv')
+            arch_count_map[arch_hash] -= 1
+        else:
+            logging.info('OK, check {}{}_{}.csv is not exist.'.format(log_path, arch_hash, arch_count))
+            print('OK, check {}{}_{}.csv is not exist.'.format(log_path, arch_hash, arch_count))
+
+
+        layer_no += 1
+
+    with open(log_path + 'arch_count_map.pkl', 'wb') as file:
+        pickle.dump(arch_count_map, file)
+
+
 def incremental_training(args, cell_filename: str):
     """
     :param args:
@@ -143,6 +186,8 @@ def incremental_training(args, cell_filename: str):
     file.close()
     random.seed(args.seed)
     random.shuffle(cell_list)
+
+    clean_residual_file(arch_count_map, cell_list[start], log_path, inputs_shape)
 
     for now_idx, cell in zip(range(start, end+1), cell_list[start: end + 1]):
         logging.info('Now running {:d}/{:d}'.format(now_idx, end))
