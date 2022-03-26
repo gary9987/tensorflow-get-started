@@ -76,13 +76,15 @@ class LrCustomCallback(tf.keras.callbacks.Callback):
         print('Learning Rate: ', tf.keras.backend.eval(self.optimizer.lr))
 
 
-def clean_residual_file(arch_count_map, cell, log_path, inputs_shape):
+def clean_residual_file(arch_count_map, cell, log_path, inputs_shape, pkl_path):
+    logging.info('Cleaning the residual file during last round...')
+    print('Cleaning the residual file during last round...')
 
-    logging.info('Cleaning residual file last round...')
-    print('Cleaning residual file last round...')
+    pkl_file = open(pkl_path, 'rb')
+    pkl_log = pickle.load(pkl_file)
+    pkl_file.close()
 
     matrix, ops = cell[0], cell[1]
-
     spec = ModelSpec(np.array(matrix), ops)
     ori_model = build_arch_model(spec, inputs_shape)
     ori_model.build([*inputs_shape])
@@ -103,18 +105,23 @@ def clean_residual_file(arch_count_map, cell, log_path, inputs_shape):
         except:
             arch_count = '0'
 
-        if path.exists( log_path + arch_hash + '_' + arch_count + '.csv'):
+        if path.exists(log_path + arch_hash + '_' + arch_count + '.csv'):
             logging.info('rm {}{}_{}.csv'.format(log_path, arch_hash, arch_count))
             print('rm {}{}_{}.csv'.format(log_path, arch_hash, arch_count))
             os.system('rm ' + log_path + arch_hash + '_' + arch_count + '.csv')
             arch_count_map[arch_hash] -= 1
+            for i in range(len(pkl_log) - 1, -1, -1):
+                if pkl_log[i]['log_file'] == arch_hash + '_' + arch_count + '.csv':
+                    del pkl_log[i]
+                    break
         else:
             logging.info('OK, check {}{}_{}.csv is not exist.'.format(log_path, arch_hash, arch_count))
             print('OK, check {}{}_{}.csv is not exist.'.format(log_path, arch_hash, arch_count))
 
-
         layer_no += 1
 
+    with open(pkl_path, 'wb') as file:
+        pickle.dump(pkl_log, file)
     with open(log_path + 'arch_count_map.pkl', 'wb') as file:
         pickle.dump(arch_count_map, file)
 
@@ -157,12 +164,18 @@ def incremental_training(args, cell_filename: str):
         arch_count_map = pickle.load(file)
         file.close()
 
+    '''
     pkl_count = 0
     while path.exists(log_path + dataset_name + '_' + str(pkl_count) + '.pkl'):
         pkl_count += 1
     pkl_path = log_path + dataset_name + '_' + str(pkl_count) + '.pkl'
     with open(pkl_path, 'wb') as file:
         pickle.dump([], file)
+    '''
+    pkl_path = log_path + dataset_name + '.pkl'
+    if not path.exists(pkl_path):
+        with open(pkl_path, 'wb') as file:
+            pickle.dump([], file)
 
     augmentation = Augmentation(args.seed)
     train_ds = prepare(train_ds, args.seed, augmentation.get_augmentation(dataset_name, training=True),
@@ -170,7 +183,7 @@ def incremental_training(args, cell_filename: str):
     val_ds = prepare(val_ds, args.seed, augmentation.get_augmentation(dataset_name, training=False),
                      shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
     test_ds = prepare(test_ds, args.seed, augmentation.get_augmentation(dataset_name, training=False),
-                     shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
+                      shuffle=False, augment=True, batch_size=batch_size, autotune=AUTOTUNE)
     # cache the dataset on memory
     # 2022/03/20 Update cache() move to prepare() function
     # train_ds = train_ds.cache()
@@ -187,9 +200,9 @@ def incremental_training(args, cell_filename: str):
     random.seed(args.seed)
     random.shuffle(cell_list)
 
-    clean_residual_file(arch_count_map, cell_list[start], log_path, inputs_shape)
+    clean_residual_file(arch_count_map, cell_list[start], log_path, inputs_shape, pkl_path)
 
-    for now_idx, cell in zip(range(start, end+1), cell_list[start: end + 1]):
+    for now_idx, cell in zip(range(start, end + 1), cell_list[start: end + 1]):
         logging.info('Now running {:d}/{:d}'.format(now_idx, end))
         print('Running on Cell:', cell)
         # log content will store the training records of every architecture.
