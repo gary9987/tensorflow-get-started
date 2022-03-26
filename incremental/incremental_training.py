@@ -41,6 +41,12 @@ def set_seeds(seed):
     tf.config.threading.set_intra_op_parallelism_threads(1)
 
 
+def set_dynamic_gpu_memory():
+    gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(device=gpu, enable=True)
+
+
 def prepare(ds, seed, data_augmentation=None, shuffle=False, augment=False, batch_size=128, autotune=tf.data.AUTOTUNE):
     # Resize and rescale all datasets.
     # ds = ds.map(lambda x, y: (resize_and_rescale(x), y), num_parallel_calls=AUTOTUNE)
@@ -145,6 +151,7 @@ def incremental_training(args, cell_filename: str):
     look_ahead_epochs = args.look_ahead_epochs
     inputs_shape = args.inputs_shape
     set_seeds(args.seed)
+    set_dynamic_gpu_memory()
     # ==========================================================
 
     (train_ds, val_ds, test_ds), metadata = tfds.load(
