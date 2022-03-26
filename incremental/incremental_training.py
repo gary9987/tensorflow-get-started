@@ -15,6 +15,9 @@ from os import path
 import os
 from augmentation import Augmentation
 from matplotlib import pyplot as plt
+import logging
+
+logging.basicConfig(filename='incremental_training.log', level=logging.INFO)
 
 
 def tuple_type(strings):
@@ -141,7 +144,8 @@ def incremental_training(args, cell_filename: str):
     random.seed(args.seed)
     random.shuffle(cell_list)
 
-    for cell in cell_list[start: end + 1]:
+    for now_idx, cell in zip(range(start, end+1), cell_list[start: end + 1]):
+        logging.info('Now running {:d}/{:d}'.format(now_idx, end))
         print('Running on Cell:', cell)
         # log content will store the training records of every architecture.
         log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss', 'test_loss', 'test_acc']]
@@ -234,7 +238,7 @@ def incremental_training(args, cell_filename: str):
             )
 
             print(log_path + arch_hash + '.csv')
-            #print(model.summary())
+            logging.info('log save to {}'.format(log_path + arch_hash + '.csv'))
 
             test_results = model.evaluate(test_ds, batch_size=256)
             test_loss, test_acc = test_results[0], test_results[1]
