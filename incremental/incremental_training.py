@@ -164,14 +164,6 @@ def incremental_training(args, cell_filename: str):
         arch_count_map = pickle.load(file)
         file.close()
 
-    '''
-    pkl_count = 0
-    while path.exists(log_path + dataset_name + '_' + str(pkl_count) + '.pkl'):
-        pkl_count += 1
-    pkl_path = log_path + dataset_name + '_' + str(pkl_count) + '.pkl'
-    with open(pkl_path, 'wb') as file:
-        pickle.dump([], file)
-    '''
     pkl_path = log_path + dataset_name + '.pkl'
     if not path.exists(pkl_path):
         with open(pkl_path, 'wb') as file:
@@ -194,6 +186,9 @@ def incremental_training(args, cell_filename: str):
         plt.show()
     '''
 
+    # Auto download if cell_list.pkl is not exist
+    if not path.exists(cell_filename):
+        os.system('sh downloads.sh')
     file = open(cell_filename, 'rb')
     cell_list = pickle.load(file)
     file.close()
