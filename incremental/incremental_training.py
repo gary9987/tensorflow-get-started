@@ -16,6 +16,7 @@ import os
 from augmentation import Augmentation
 from matplotlib import pyplot as plt
 import logging
+import gc
 
 logging.basicConfig(filename='incremental_training.log', level=logging.INFO)
 
@@ -159,10 +160,16 @@ def incremental_training(args, cell_filename: str):
         split=['train[:80%]', 'train[80%:90%]', 'train[90%:]'],
         with_info=True,
         as_supervised=True,
+        data_dir='./tensorflow_datasets'
     )
     num_classes = metadata.features['label'].num_classes
 
     Path(log_path).mkdir(parents=True, exist_ok=True)
+
+    if not path.exists(log_path + dataset_name + '_failure' + '.csv'):
+        with open(log_path + dataset_name + '_failure' + '.csv', 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['now_idx', 'start_id', 'end_id', 'matrix', 'ops'])
 
     # The dict is to record amount of the times which the arch appear
     arch_count_map = dict()
@@ -205,134 +212,155 @@ def incremental_training(args, cell_filename: str):
     clean_residual_file(arch_count_map, cell_list[start], log_path, inputs_shape, pkl_path)
 
     for now_idx, cell in zip(range(start, end + 1), cell_list[start: end + 1]):
-        logging.info('Now running {:d}/{:d}'.format(now_idx, end))
-        print('Running on Cell:', cell)
-        # log content will store the training records of every architecture.
-        log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss', 'test_loss', 'test_acc']]
+        try:
 
-        matrix, ops = cell[0], cell[1]
+            logging.info('Now running {:d}/{:d}'.format(now_idx, end))
+            print('Running on Cell:', cell)
+            # log content will store the training records of every architecture.
+            log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss', 'test_loss', 'test_acc']]
 
-        spec = ModelSpec(np.array(matrix), ops)
-        ori_model = build_arch_model(spec, inputs_shape)
-        ori_model.build([*inputs_shape])
+            matrix, ops = cell[0], cell[1]
 
-        for layer_no in range(len(ori_model.layers)):
-            print(ori_model.layers[layer_no].name)
+            spec = ModelSpec(np.array(matrix), ops)
+            ori_model = build_arch_model(spec, inputs_shape)
+            ori_model.build([*inputs_shape])
 
-        print(ori_model.summary())
+            for layer_no in range(len(ori_model.layers)):
+                print(ori_model.layers[layer_no].name)
 
-        loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
-        optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.lr, momentum=args.momentum, epsilon=1.0)
-        lr_scheduler_callback = LrCustomCallback(metadata.splits['train'].num_examples,
-                                                 args.batch_size,
-                                                 len(ori_model.layers),
-                                                 optimizer)
+            print(ori_model.summary())
 
-        model = tf.keras.Sequential()
+            loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
+            optimizer = tf.keras.optimizers.RMSprop(learning_rate=args.lr, momentum=args.momentum, epsilon=1.0)
+            lr_scheduler_callback = LrCustomCallback(metadata.splits['train'].num_examples,
+                                                     args.batch_size,
+                                                     len(ori_model.layers),
+                                                     optimizer)
 
-        # layer_no start from 0 which is the first layer
-        layer_no = 0
-        while layer_no < len(ori_model.layers):
+            model = tf.keras.Sequential()
 
-            # freeze the pre layer for look-ahead process
-            for i in range(layer_no):
-                model.layers[i].trainable = False
-                # print(model.layers[i].name + ' False')
+            # layer_no start from 0 which is the first layer
+            layer_no = 0
+            while layer_no < len(ori_model.layers):
 
-            # Add k+1 sublayer
-            model.add(ori_model.layers[layer_no])
-            # Skip when meet a pooling layer
-            while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
-                                                            'drop' in ori_model.layers[layer_no + 1].name or
-                                                            'activation' in ori_model.layers[layer_no + 1].name):
-                print(ori_model.layers[layer_no + 1].name, ' layer is not trainable so it will be added')
-                layer_no += 1
+                # freeze the pre layer for look-ahead process
+                for i in range(layer_no):
+                    model.layers[i].trainable = False
+                    # print(model.layers[i].name + ' False')
+
+                # Add k+1 sublayer
                 model.add(ori_model.layers[layer_no])
+                # Skip when meet a pooling layer
+                while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
+                                                                'drop' in ori_model.layers[layer_no + 1].name or
+                                                                'activation' in ori_model.layers[layer_no + 1].name):
+                    print(ori_model.layers[layer_no + 1].name, ' layer is not trainable so it will be added')
+                    layer_no += 1
+                    model.add(ori_model.layers[layer_no])
 
-            # Add classifier
-            model.add(tf.keras.Sequential([Classifier(num_classes, spec.data_format)]))
+                # Add classifier
+                model.add(tf.keras.Sequential([Classifier(num_classes, spec.data_format)]))
 
-            for i in model.layers:
-                print(i.name, 'trainable:', i.trainable)
+                for i in model.layers:
+                    print(i.name, 'trainable:', i.trainable)
 
-            model.compile(optimizer=optimizer,
-                          loss=loss_object,
-                          metrics=['accuracy'])
+                model.compile(optimizer=optimizer,
+                              loss=loss_object,
+                              metrics=['accuracy'])
 
-            # train a epochs for Look-Ahead phase
-            history = model.fit(
-                train_ds,
-                validation_data=val_ds,
-                epochs=look_ahead_epochs
-            )
-            print("Look-Ahead Finished.")
-            # print(model.summary())
-            # train
-            for i in range(layer_no + 1):
-                model.layers[i].trainable = True
+                # train a epochs for Look-Ahead phase
+                history = model.fit(
+                    train_ds,
+                    validation_data=val_ds,
+                    epochs=look_ahead_epochs
+                )
+                print("Look-Ahead Finished.")
+                # print(model.summary())
+                # train
+                for i in range(layer_no + 1):
+                    model.layers[i].trainable = True
 
-            model.compile(optimizer=optimizer,
-                          loss=loss_object,
-                          metrics=['accuracy'])
+                model.compile(optimizer=optimizer,
+                              loss=loss_object,
+                              metrics=['accuracy'])
 
-            # print(model.summary())
-            arch_hash = hashlib.shake_128((str(matrix) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
-            arch_count = 0
-            if arch_count_map.get(arch_hash) is not None:
-                arch_count_map[arch_hash] = arch_count_map[arch_hash] + 1
-                arch_count = arch_count_map.get(arch_hash)
-            else:
-                arch_count_map[arch_hash] = 0
-            with open(log_path + 'arch_count_map.pkl', 'wb') as file:
-                pickle.dump(arch_count_map, file)
-            arch_hash += '_' + str(arch_count)
+                # print(model.summary())
+                arch_hash = hashlib.shake_128((str(matrix) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
+                arch_count = 0
+                if arch_count_map.get(arch_hash) is not None:
+                    arch_count_map[arch_hash] = arch_count_map[arch_hash] + 1
+                    arch_count = arch_count_map.get(arch_hash)
+                else:
+                    arch_count_map[arch_hash] = 0
+                with open(log_path + 'arch_count_map.pkl', 'wb') as file:
+                    pickle.dump(arch_count_map, file)
+                arch_hash += '_' + str(arch_count)
 
-            early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
-                                                                       mode='min')
-            csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
-            history = model.fit(
-                train_ds,
-                validation_data=val_ds,
-                epochs=epochs,
-                callbacks=[early_stopping_callback, csv_logger_callback, lr_scheduler_callback]
-            )
+                early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=args.patience,
+                                                                           mode='min')
+                csv_logger_callback = CSVLogger(log_path + arch_hash + '.csv', append=False, separator=',')
+                history = model.fit(
+                    train_ds,
+                    validation_data=val_ds,
+                    epochs=epochs,
+                    callbacks=[early_stopping_callback, csv_logger_callback, lr_scheduler_callback]
+                )
 
-            print(log_path + arch_hash + '.csv')
-            logging.info('log save to {}'.format(log_path + arch_hash + '.csv'))
+                print(log_path + arch_hash + '.csv')
+                logging.info('log save to {}'.format(log_path + arch_hash + '.csv'))
 
-            test_results = model.evaluate(test_ds, batch_size=256)
-            test_loss, test_acc = test_results[0], test_results[1]
+                test_results = model.evaluate(test_ds, batch_size=256)
+                test_loss, test_acc = test_results[0], test_results[1]
 
-            #  ====================log process==============================
-            # Append log of this time to log_content.
-            with open(log_path + arch_hash + '.csv', 'r', newline='') as csvfile:
-                rows = csv.reader(csvfile)
-                for i in rows:
-                    if i[0] == 'epoch':
-                        continue
-                    log_content.append(i + [test_loss, test_acc])
+                #  ====================log process==============================
+                # Append log of this time to log_content.
+                with open(log_path + arch_hash + '.csv', 'r', newline='') as csvfile:
+                    rows = csv.reader(csvfile)
+                    for i in rows:
+                        if i[0] == 'epoch':
+                            continue
+                        log_content.append(i + [test_loss, test_acc])
 
-            # Write whole log_content to log file.
-            with open(log_path + arch_hash + '.csv', 'w', newline='') as csvfile:
+                # Write whole log_content to log file.
+                with open(log_path + arch_hash + '.csv', 'w', newline='') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerows(log_content)
+
+                # Write the match between architecture and log file name to dataset log file.
+                pkl_file = open(pkl_path, 'rb')
+                pkl_log = pickle.load(pkl_file)
+                pkl_file.close()
+                pkl_log.append({'matrix': matrix, 'ops': ops, 'layers': layer_no, 'log_file': arch_hash + '.csv'})
+                pkl_file = open(pkl_path, 'wb')
+                pickle.dump(pkl_log, pkl_file)
+                print(pkl_path)
+                pkl_file.close()
+                # ==============================================================
+
+                # Pop the classifier
+                if layer_no + 1 != len(ori_model.layers):
+                    model = tf.keras.models.Sequential(model.layers[:-1])
+
+                layer_no += 1
+
+        except tf.errors.ResourceExhaustedError as e:
+            # release the model
+            # gc collect
+            del ori_model
+            del model
+            tf.keras.backend.clear_session()
+
+            # log failure cell to csv
+            with open(log_path + dataset_name + '_failure' + '.csv', 'a', newline='') as csvfile:
                 writer = csv.writer(csvfile)
-                writer.writerows(log_content)
+                writer.writerow([now_idx, start, end, cell[0], cell[1]])
 
-            # Write the match between architecture and log file name to dataset log file.
-            pkl_file = open(pkl_path, 'rb')
-            pkl_log = pickle.load(pkl_file)
-            pkl_file.close()
-            pkl_log.append({'matrix': matrix, 'ops': ops, 'layers': layer_no, 'log_file': arch_hash + '.csv'})
-            pkl_file = open(pkl_path, 'wb')
-            pickle.dump(pkl_log, pkl_file)
-            print(pkl_path)
-            pkl_file.close()
-            # ==============================================================
+                # pray for gc
+            gc.collect()
+            gc.collect()
+            gc.collect()
 
-            # Pop the classifier
-            if layer_no + 1 != len(ori_model.layers):
-                model = tf.keras.models.Sequential(model.layers[:-1])
-
-            layer_no += 1
+            continue
 
 
 def parse_args() -> Namespace:
