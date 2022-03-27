@@ -1,0 +1,24 @@
+FROM tensorflow/tensorflow:2.7.0-gpu
+ARG USER=docker
+ARG GROUP=docker
+ARG PASSWORD=docker
+ARG HOME=/home/${USER}
+
+ARG UID=1065 # change to your uid. command 'id' can get your id
+ARG GID=1065 # change to your gid. command 'id' can get your gid
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN groupadd -g ${GID} ${GROUP} && useradd -m ${USER} --uid=${UID} --gid=${GID} && echo "${USER}:${PASSWORD}" | chpasswd
+RUN apt-get update
+RUN apt-get install -y git sudo wget vim && adduser ${USER} sudo
+RUN apt-get clean
+
+USER ${UID}:${GID}
+WORKDIR ${HOME}
+
+RUN /usr/bin/python3 -m pip install --upgrade pip
+ADD . ${HOME}
+RUN pip install -r requirements.txt
+
+CMD export PATH=$PATH:${HOME}/.local/bin

@@ -1,0 +1,1 @@
+docker run --name $1 -d --gpus $2 -it -v $PWD/..:/home/docker/project  --user $(id -u):$(id -g) tf2.7.0 bash
