@@ -1,3 +1,6 @@
+*_log
+tensorflow_datasets
+*.pkl
 .DS_Store
 jpg
 .idea

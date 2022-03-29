@@ -343,7 +343,7 @@ def incremental_training(args, cell_filename: str):
 
                 layer_no += 1
 
-        except tf.errors.ResourceExhaustedError as e:
+        except:
             # release the model
             # gc collect
             del ori_model
