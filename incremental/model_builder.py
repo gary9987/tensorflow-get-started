@@ -332,7 +332,7 @@ if __name__ == '__main__':
 
     for layer_no in range(len(model.layers)):
         print(model.layers[layer_no].name)
-        
+
     '''
     del model
     model2 = build_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)

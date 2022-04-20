@@ -6,7 +6,7 @@ from model_spec import ModelSpec
 from model_builder import CellModel, build_arch_model
 import numpy as np
 from keras.callbacks import CSVLogger
-from model_util import get_model_by_id_and_layer
+import model_util
 
 batch_size = 256
 AUTOTUNE = tf.data.AUTOTUNE
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
     optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.1, momentum=0.9, epsilon=1.0)
 
-    model = get_model_by_id_and_layer('./cell_list.pkl', 0, (None, 28, 28, 1), 0, 5)
+    model = model_util.get_model_by_id_and_layer('./cell_list.pkl', 0, (None, 28, 28, 1), 0, 5)
     model.add(Classifier(10))
     model.build([None, 28, 28, 1])
     model.summary()
@@ -88,7 +88,7 @@ if __name__ == '__main__':
               loss=loss_object,
               metrics=['accuracy'])
 
-    epochs = 20 * 12
+    epochs = 2
     early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, mode='min')
     csv_logger_callback = CSVLogger('./normal_training_log.csv', append=False, separator=',')
     lr_scheduler_callback = LrCustomCallback(metadata.splits['train'].num_examples,
@@ -101,5 +101,13 @@ if __name__ == '__main__':
         epochs=epochs,
         callbacks=[early_stopping_callback, csv_logger_callback, lr_scheduler_callback]
     )
-
     model.evaluate(test_ds, verbose=2)
+
+    # Create a new model and copy the weight
+    model2 = model_util.get_model_by_id_and_layer('./cell_list.pkl', 0, (None, 28, 28, 1), 0, 5)
+    model2.add(Classifier(10))
+    model2.build([None, 28, 28, 1])
+    model2 = model_util.copy_model_weight(model2, model)
+    model2.compile(loss=loss_object, metrics=['accuracy'])
+    model2.evaluate(test_ds, verbose=2)
+    
