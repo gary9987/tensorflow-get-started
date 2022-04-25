@@ -60,11 +60,32 @@ def copy_model_weight(dst, src):
     return dst
 
 
+def predict_to_bin_str(model: tf.keras.Model, inputs: tf.Tensor):
+    # Clone a new model and set weights by original model weights
+    private_model = tf.keras.models.clone_model(model)
+    private_model.set_weights(model.get_weights())
+    # The function of added layer is equal to f(x) = (1 if x > 0 else 0)
+    private_model.add(tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0))))
+    model_out = list(tf.reshape(private_model.predict(inputs), -1).numpy().astype(int))
+    bin_str = ''.join(str(e) for e in model_out)
+    return bin_str
+
+
+def hamming_distance(str1: str, str2: str) -> int:
+    hamming_list = list(map(lambda x, y: x != y, str1, str2))
+    return sum(hamming_list)
+
+
 if __name__ == '__main__':
     ori_model = get_model_by_id('./cell_list.pkl', shuffle_seed=0, inputs_shape=(None, 28, 28, 1), id=0)
     print(ori_model.summary())
     sub_model = get_model_by_id_and_layer('./cell_list.pkl', shuffle_seed=0, inputs_shape=(None, 28, 28, 1), id=0, layer=6)
     print(sub_model.summary())
-
     sub_model = copy_model_weight(sub_model, ori_model)
+
+    np.random.seed(0)
+    data = tf.convert_to_tensor(np.random.randint(128, size=(1, 28, 28, 1)))
+    bin_str1 = predict_to_bin_str(sub_model, data)
+    bin_str2 = predict_to_bin_str(sub_model, data)
+    print(hamming_distance(bin_str1, bin_str2))
 

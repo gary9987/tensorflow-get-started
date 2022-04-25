@@ -112,7 +112,7 @@ def truncate(inputs_shape, inputs, channels, data_format):
             return tf.slice(inputs, [0, 0, 0, 0], [-1, channels, -1, -1])
 
 
-class CellModel(tf.keras.Model):
+class CellModel(tf.keras.layers.Layer):
     def __init__(self, spec: ModelSpec, inputs_shape, channels, is_training):
         super(CellModel, self).__init__()
 
@@ -228,7 +228,14 @@ class CellModel(tf.keras.Model):
         x = tf.keras.Input(shape=shape)
         return tf.keras.Model(inputs=[x], outputs=self.call(x))
 
-
+    def get_config(self):
+        config = {
+            "spec": self.spec,
+            "inputs_shape": self.inputs_shape,
+            "channels": self.channels,
+            "is_training": self.is_training
+        }
+        return config
 '''
 class Arch_Model(tf.keras.Model):
     def __init__(self, spec: ModelSpec, inputs_shape, is_training, num_stacks=3, num_cells=3):

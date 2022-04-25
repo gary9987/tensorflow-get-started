@@ -31,6 +31,10 @@ BN_EPSILON = 1e-5
 class ConvBnRelu(tf.keras.layers.Layer):
     def __init__(self, conv_size, conv_filters, is_training, data_format):
         super(ConvBnRelu, self).__init__()
+        self.conv_size = conv_size
+        self.conv_filters = conv_filters
+        self.is_training = is_training
+        self.data_format = data_format
         """Convolution followed by batch norm and ReLU."""
         if data_format == 'channels_last':
             axis = 3
@@ -62,6 +66,14 @@ class ConvBnRelu(tf.keras.layers.Layer):
         x = self.relu(x)
         return x
 
+    def get_config(self):
+        config = {
+            "conv_size": self.conv_size,
+            "conv_filters": self.conv_filters,
+            "is_training": self.is_training,
+            "data_format": self.data_format
+        }
+        return config
 
 '''
 def conv_bn_relu(inputs, conv_size, conv_filters, is_training, data_format):
