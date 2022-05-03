@@ -4,6 +4,7 @@ import pickle
 import pathlib
 import logging
 
+
 def main(args):
     logging.basicConfig(filename='combined.log', level=logging.INFO)
 
@@ -13,14 +14,12 @@ def main(args):
         os.system('tar xvf {}'.format(tar))
     
     os.system('mkdir combined')
-     
 
     # find all files with .csv postfix recursively 
     csv_list = list(pathlib.Path(r".").glob(r"**/*.csv"))
-    pkl_list = list(pathlib.Path(r".").glob(r"**/"+ args.name + r".pkl"))
+    pkl_list = list(pathlib.Path(r".").glob(r"**/" + args.name + r".pkl"))
 
     # copy all csv file to combined directory
-    
     for csv in csv_list:
         os.system('cp {} ./combined'.format(csv))
 
@@ -47,6 +46,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--name", type=str, default='cifar10')
     args = parser.parse_args()
     return args
+
 
 if __name__ == '__main__':
     args = parse_args()

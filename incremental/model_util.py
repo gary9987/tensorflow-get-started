@@ -73,7 +73,20 @@ def predict_to_bin_str(model: tf.keras.Model, inputs: tf.Tensor):
 
 def hamming_distance(str1: str, str2: str) -> int:
     hamming_list = list(map(lambda x, y: x != y, str1, str2))
-    return sum(hamming_list)
+    return sum(hamming_list), len(str1)
+
+# A dataset 的難易程度 Model 5 layers
+# 一個 data 各 layers 的 BinStr 全部接起來
+# D1 = Data1 0|1|2|3|4|5
+# D2 = Data2 0|1|2|3|4|5
+# ... Dn
+# 挑固定數量
+# 計算分數
+# row sample_size 兩兩做
+# 投影片中的 N_A 是 H的上限
+# Matrix = [[H(D1,D1), H(D1, D2)],
+#           [[H(D2,D1), H(D2, D2)]]
+# 之後算 det(Matrix)
 
 
 if __name__ == '__main__':
