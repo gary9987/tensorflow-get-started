@@ -9,7 +9,6 @@ import os
 
 
 def get_model_by_id_and_layer(cell_filename, shuffle_seed: int, inputs_shape: tuple, id: int, layer: int):
-
     # Auto download if cell_list.pkl is not exist
     if not path.exists(cell_filename):
         os.system('sh download.sh')
@@ -26,7 +25,8 @@ def get_model_by_id_and_layer(cell_filename, shuffle_seed: int, inputs_shape: tu
     ori_model.build([*inputs_shape])
 
     model = tf.keras.Sequential()
-    for layer_no in range(layer):
+    # layer index is 0-based
+    for layer_no in range(layer+1):
         model.add(ori_model.layers[layer_no])
 
     model.build([*inputs_shape])
@@ -34,7 +34,6 @@ def get_model_by_id_and_layer(cell_filename, shuffle_seed: int, inputs_shape: tu
 
 
 def get_model_by_id(cell_filename, shuffle_seed: int, inputs_shape: tuple, id: int):
-
     # Auto download if cell_list.pkl is not exist
     if not path.exists(cell_filename):
         os.system('sh download.sh')
@@ -60,20 +59,21 @@ def copy_model_weight(dst, src):
     return dst
 
 
-def predict_to_bin_str(model: tf.keras.Model, inputs: tf.Tensor):
+def predict_to_bin_str_batch(model: tf.keras.Model, inputs: tf.Tensor) -> list:
     # Clone a new model and set weights by original model weights
     private_model = tf.keras.models.clone_model(model)
     private_model.set_weights(model.get_weights())
     # The function of added layer is equal to f(x) = (1 if x > 0 else 0)
     private_model.add(tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0))))
-    model_out = list(tf.reshape(private_model.predict(inputs), -1).numpy().astype(int))
-    bin_str = ''.join(str(e) for e in model_out)
-    return bin_str
+    model_outs = list(tf.reshape(private_model.predict(inputs), (inputs.shape[0], -1)).numpy().astype(int))
+    binstr_list = [''.join(str(e) for e in out) for out in model_outs]
+    return binstr_list
 
 
 def hamming_distance(str1: str, str2: str) -> int:
     hamming_list = list(map(lambda x, y: x != y, str1, str2))
     return sum(hamming_list), len(str1)
+
 
 # A dataset 的難易程度 Model 5 layers
 # 一個 data 各 layers 的 BinStr 全部接起來
@@ -87,18 +87,45 @@ def hamming_distance(str1: str, str2: str) -> int:
 # Matrix = [[H(D1,D1), H(D1, D2)],
 #           [[H(D2,D1), H(D2, D2)]]
 # 之後算 det(Matrix)
+def calculate_dataset_level(cell_filename: str, shuffle_seed: int, inputs_shape: tuple, model_id: int,
+                            data_samples: tf.Tensor):
+
+    binstr_list = [""] * data_samples.shape[0]
+
+    ori_model = get_model_by_id(cell_filename, shuffle_seed, inputs_shape, model_id)
+
+    for i in range(len(ori_model.layers)):
+        sub_model = get_model_by_id_and_layer(cell_filename, shuffle_seed, inputs_shape, model_id, layer=i)
+        sub_model = copy_model_weight(dst=sub_model, src=ori_model)
+        pred_list = predict_to_bin_str_batch(model=sub_model, inputs=data_samples)
+        for j in range(len(pred_list)):
+            binstr_list[j] += pred_list[j]
+
+    matrix = np.zeros((data_samples.shape[0], data_samples.shape[0]))
+
+    for i in range(data_samples.shape[0]):
+        for j in range(data_samples.shape[0]):
+            dis, maxn = hamming_distance(binstr_list[i], binstr_list[j])
+            matrix[i][j] = dis
+
+    det = np.linalg.det(matrix)
+
+    return det
 
 
 if __name__ == '__main__':
+    '''
     ori_model = get_model_by_id('./cell_list.pkl', shuffle_seed=0, inputs_shape=(None, 28, 28, 1), id=0)
     print(ori_model.summary())
-    sub_model = get_model_by_id_and_layer('./cell_list.pkl', shuffle_seed=0, inputs_shape=(None, 28, 28, 1), id=0, layer=6)
+    sub_model = get_model_by_id_and_layer('./cell_list.pkl', shuffle_seed=0, inputs_shape=(None, 28, 28, 1), id=0,
+                                          layer=1)
     print(sub_model.summary())
     sub_model = copy_model_weight(sub_model, ori_model)
-
+    '''
     np.random.seed(0)
-    data = tf.convert_to_tensor(np.random.randint(128, size=(1, 28, 28, 1)))
-    bin_str1 = predict_to_bin_str(sub_model, data)
-    bin_str2 = predict_to_bin_str(sub_model, data)
-    print(hamming_distance(bin_str1, bin_str2))
-
+    data = tf.convert_to_tensor(np.random.randint(128, size=(5, 28, 28, 1)))
+    print(calculate_dataset_level('./cell_list.pkl',
+                                  shuffle_seed=0,
+                                  inputs_shape=(None, 28, 28, 1),
+                                  model_id=0,
+                                  data_samples=data))
