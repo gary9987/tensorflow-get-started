@@ -106,7 +106,7 @@ def calculate_dataset_level(cell_filename: str, shuffle_seed: int, inputs_shape:
     for i in range(data_samples.shape[0]):
         for j in range(data_samples.shape[0]):
             dis, maxn = hamming_distance(binstr_list[i], binstr_list[j])
-            matrix[i][j] = dis
+            matrix[i][j] = maxn - dis
 
     det = np.linalg.det(matrix)
 

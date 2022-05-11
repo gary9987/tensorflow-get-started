@@ -12,6 +12,7 @@ def main(args):
     logging.info('There are {} to be proccessed.'.format(str(tar_list)))
     for id, tar in enumerate(tar_list):
         os.system('tar xvf {}'.format(tar))
+        os.system('mv {}_log log_{}'.format(args.name, pathlib.Path(tar).stem))
     
     os.system('mkdir combined')
 
