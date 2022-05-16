@@ -1,3 +1,4 @@
+import csv
 import pickle
 import tensorflow as tf
 import random
@@ -49,30 +50,16 @@ def check_log_exist(args, cell_filename: str):
         ori_model = build_arch_model(spec, inputs_shape)
         ori_model.build([*inputs_shape])
 
-        for layer_no in range(len(ori_model.layers)):
-            print(ori_model.layers[layer_no].name)
-
-        model = tf.keras.Sequential()
-
         # layer_no start from 0 which is the first layer
         layer_no = 0
         while layer_no < len(ori_model.layers):
-            # freeze the pre layer for look-ahead process
-            for i in range(layer_no):
-                model.layers[i].trainable = False
 
-            # Add k+1 sublayer
-            model.add(ori_model.layers[layer_no])
             # Skip when meet a pooling layer
             while layer_no + 1 < len(ori_model.layers) and ('pool' in ori_model.layers[layer_no + 1].name or
                                                             'drop' in ori_model.layers[layer_no + 1].name or
                                                             'activation' in ori_model.layers[layer_no + 1].name):
                 print(ori_model.layers[layer_no + 1].name, ' layer is not trainable so it will be added')
                 layer_no += 1
-                model.add(ori_model.layers[layer_no])
-
-            # Add classifier
-            model.add(tf.keras.Sequential([Classifier(num_classes, spec.data_format)]))
 
             # print(model.summary())
             arch_hash = hashlib.shake_128((str(matrix) + str(ops) + str(layer_no)).encode('utf-8')).hexdigest(10)
@@ -81,11 +68,12 @@ def check_log_exist(args, cell_filename: str):
             if not os.path.exists(log_path + arch_hash + '.csv'):
                 missing_list.append([now_idx, layer_no])
 
-            # Pop the classifier
-            if layer_no + 1 != len(ori_model.layers):
-                model = tf.keras.models.Sequential(model.layers[:-1])
-
             layer_no += 1
+
+    with open('missing_log.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['index', 'layer_no'])
+        writer.writerows(missing_list)
 
     print(missing_list)
 
