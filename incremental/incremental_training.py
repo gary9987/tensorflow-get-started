@@ -292,6 +292,7 @@ def incremental_training(args, cell_filename: str):
                     arch_count = arch_count_map.get(arch_hash)
                 else:
                     arch_count_map[arch_hash] = 0
+
                 with open(log_path + 'arch_count_map.pkl', 'wb') as file:
                     pickle.dump(arch_count_map, file)
                 arch_hash += '_' + str(arch_count)
@@ -373,7 +374,7 @@ def parse_args() -> Namespace:
     # train
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--look_ahead_epochs", type=int, default=1)
-    # TODO change patience
+
     parser.add_argument("--patience", type=int, default=8)
 
     # optimizer
