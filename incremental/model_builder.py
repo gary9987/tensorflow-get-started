@@ -236,6 +236,7 @@ class CellModel(tf.keras.layers.Layer):
             "is_training": self.is_training
         }
         return config
+
 '''
 class Arch_Model(tf.keras.Model):
     def __init__(self, spec: ModelSpec, inputs_shape, is_training, num_stacks=3, num_cells=3):

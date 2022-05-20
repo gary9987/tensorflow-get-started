@@ -1,8 +1,8 @@
-from spektral.datasets import TUDataset
+from gcn.datasets import TUDataset
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout
-from spektral.layers import GCNConv, GlobalSumPool
-from spektral.data import BatchLoader
+from gcn.layers import GCNConv, GlobalSumPool
+from gcn.data import BatchLoader
 
 
 class MyFirstGNN(Model):
