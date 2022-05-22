@@ -1,7 +1,8 @@
-from spektral.data import Dataset, DisjointLoader, Graph
+from spektral.data import Dataset, Graph
 import pickle
 import numpy as np
 import csv
+from model_spec import ModelSpec
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
@@ -71,10 +72,12 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
 
 
 class LearningCurveDataset(Dataset):
-    def __init__(self, record_dic, record_dir, **kwargs):
+    def __init__(self, record_dic, record_dir, num_samples, **kwargs):
         self.nodes = 67
         self.n_features = 7
-        # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5, 'maxpool2x2': 6,
+        self.num_samples = num_samples
+        # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
+        # 'maxpool2x2': 6,
         self.ops_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4}
         self.record_dir = record_dir
         self.record_dic = record_dic
@@ -83,8 +86,9 @@ class LearningCurveDataset(Dataset):
     def read(self):
         graph_list = []
 
-        for record in self.record_dic:
-            matrix, ops, layers, log_file = np.array(record['matrix']), record['ops'], record['layers'], record['log_file']
+        for record in self.record_dic[: self.num_samples]:
+            matrix, ops, layers, log_file = np.array(record['matrix']), record['ops'], record['layers'], record[
+                'log_file']
 
             # Labels Y
             y = np.zeros(3)  # train_acc, valid_acc, test_acc
@@ -100,7 +104,7 @@ class LearningCurveDataset(Dataset):
             # Node features X
             x = np.zeros((self.nodes, self.n_features), dtype=int)
             ops2idx = [self.ops_dict[op] for op in ops]
-            for now_layer in range(11+1):
+            for now_layer in range(11 + 1):
                 if now_layer == 0:
                     x[now_layer][2] = 1  # stem is a 'conv3x3-bn-relu' type
                 elif now_layer == 4:
@@ -115,7 +119,7 @@ class LearningCurveDataset(Dataset):
             x[66][5] = 1
 
             # Adjacency matrix A
-            adj_matrix = np.zeros((self.nodes, self.nodes))
+            adj_matrix = np.zeros((self.nodes, self.nodes), dtype=int)
             '''
             0 convbn 128 
             1 cell    
@@ -130,7 +134,7 @@ class LearningCurveDataset(Dataset):
             52 cell
             59 cell
             '''
-            for now_layer in range(layers+1):
+            for now_layer in range(layers + 1):
                 if now_layer == 0:
                     if now_layer == layers:
                         adj_matrix[0][self.nodes - 1] = 1  # to classifier
@@ -156,47 +160,76 @@ class LearningCurveDataset(Dataset):
                             if now_layer == layers:
                                 adj_matrix[i + node_start_no][self.nodes - 1] = 1  # to classifier
                             else:
-                                adj_matrix[i + node_start_no][i + node_start_no + 1] = 1  # output node to next input node
+                                adj_matrix[i + node_start_no][
+                                    i + node_start_no + 1] = 1  # output node to next input node
                         else:
                             for j in range(matrix.shape[1]):
                                 if matrix[i][j] == 1:
                                     adj_matrix[i + node_start_no][j + node_start_no] = 1
 
-
             # Edges E
             e = np.zeros((self.nodes, self.nodes), dtype=int)
-            for now_layer in range(layers+1):
+            spec = ModelSpec(np.array(matrix), ops)
+
+            for now_layer in range(layers + 1):
                 if now_layer == 0:
-                    e[0][1] = 128  # stem to input node
+                    if now_layer == layers:
+                        e[0][self.nodes - 1] = 128  # to classifier
+                    else:
+                        e[0][1] = 128  # stem to input node
                 elif now_layer == 4:
-                    e[21][22] = 128   # output to maxpool
-                    e[22][23] = 128  # maxpool to input
+                    e[21][22] = 128  # output to maxpool
+                    if now_layer == layers:
+                        e[22][self.nodes - 1] = 128
+                    else:
+                        e[22][23] = 128  # maxpool to input
                 elif now_layer == 8:
                     e[43][44] = 256  # output to maxpool
-                    e[44][45] = 256  # maxpool to input
+                    if now_layer == layers:
+                        e[44][self.nodes - 1] = 256
+                    else:
+                        e[44][45] = 256  # maxpool to input
                 else:
                     now_group = now_layer // 4 + 1
                     node_start_no = now_group + 7 * (now_layer - now_group)
                     now_channel = now_group * 128
 
                     if now_layer == 1:
-                        node_channels = compute_vertex_channels(now_channel, now_channel, matrix)
+                        tmp_channels = compute_vertex_channels(now_channel, now_channel, spec.matrix)
                     elif now_layer == 5 or now_layer == 9:
-                        node_channels = compute_vertex_channels(now_channel // 2, now_channel, matrix)
+                        tmp_channels = compute_vertex_channels(now_channel // 2, now_channel, spec.matrix)
                     else:
-                        node_channels = compute_vertex_channels(now_channel, now_channel, matrix)
+                        tmp_channels = compute_vertex_channels(now_channel, now_channel, spec.matrix)
+
+                    # fix channels length to nodes num
+                    node_channels = [0] * self.n_features
+                    if len(node_channels) == len(tmp_channels):
+                        node_channels = tmp_channels
+                    else:
+                        now_cot = 0
+                        for n in range(len(tmp_channels)):
+                            if np.all(matrix[now_cot] == 0) and now_cot != 6:
+                                now_cot += 1
+                                node_channels[now_cot] = tmp_channels[n]
+                            else:
+                                node_channels[now_cot] = tmp_channels[n]
+                            now_cot += 1
 
                     for i in range(matrix.shape[0]):
                         if i == 6:  # output node to next input node
-                            e[i + node_start_no][i + node_start_no + 1] = now_channel
+                            if now_layer == layers:
+                                e[i + node_start_no][self.nodes - 1] = now_channel
+                            else:
+                                e[i + node_start_no][i + node_start_no + 1] = now_channel
                         else:
                             for j in range(matrix.shape[1]):
                                 if matrix[i][j] == 1:
                                     e[i + node_start_no][j + node_start_no] = node_channels[j]
 
+            graph_list.append(Graph(a=adj_matrix, e=e, x=x, y=y))
 
 
-
+        return graph_list
 
 
 if __name__ == '__main__':
@@ -204,6 +237,6 @@ if __name__ == '__main__':
     record = pickle.load(file)
     file.close()
 
-    dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/')
+    dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', num_samples=10)
     dataset.read()
-
+    print(dataset[0])

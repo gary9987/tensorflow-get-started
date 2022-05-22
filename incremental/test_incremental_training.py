@@ -203,7 +203,14 @@ def incremental_training(args, cell_filename: str):
     # log content will store the training records of every architecture.
     log_content = [['epoch', 'accuracy', 'loss', 'val_accuracy', 'val_loss', 'test_loss', 'test_acc']]
 
-    matrix, ops = [[0, 1, 0, 0, 0, 0, 0], [0, 0, 1, 1, 1, 0, 0], [0, 0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 1, 1, 0], [0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1], [0, 0, 0, 0, 0, 0, 0]], ['INPUT', 'conv3x3-bn-relu', 'conv3x3-bn-relu', 'maxpool3x3', 'conv1x1-bn-relu', 'maxpool3x3', 'OUTPUT']
+    matrix = [[0, 0, 1, 0, 1, 0, 0],
+              [0, 0, 0, 0, 0 ,0 ,0],
+              [0, 0, 0, 1, 0, 0, 1],
+              [0, 0, 0, 0, 1, 1, 0],
+              [0, 0, 0, 0, 0, 1, 1],
+              [0, 0, 0, 0, 0, 0, 1],
+              [0, 0, 0, 0, 0, 0, 0]]
+    ops = ['INPUT', 'conv3x3-bn-relu', 'conv3x3-bn-relu', 'maxpool3x3', 'conv1x1-bn-relu', 'maxpool3x3', 'OUTPUT']
 
     spec = ModelSpec(np.array(matrix), ops)
     ori_model = build_arch_model(spec, inputs_shape)
