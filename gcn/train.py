@@ -14,8 +14,8 @@ class GNN_Model(Model):
         super().__init__()
         self.graph_conv = ECCConv(n_hidden)
         self.pool = GlobalSumPool()
-        self.dropout = Dropout(0.5)
-        self.dense = Dense(3, activation='relu')  # train_acc, valid_acc, test_acc
+        self.dropout = Dropout(0.3)
+        self.dense = Dense(3)  # train_acc, valid_acc, test_acc
 
     def call(self, inputs):
         out = self.graph_conv(inputs)
@@ -31,15 +31,26 @@ if __name__ == '__main__':
     record = pickle.load(file)
     file.close()
 
-    dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', num_samples=10000)
-    print(dataset)
-    #dataset = TUDataset('PROTEINS')
+    train_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
+                                         end=19999)
+    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=20000,
+                                         end=29999)
+    print(train_dataset, valid_dataset)
 
     model = GNN_Model(n_hidden=128)
-    model.compile('adam', 'mean_squared_error', metrics=['accuracy'])
+    model.compile('adam', 'mean_squared_error', metrics=['acc'])
 
-    loader = BatchLoader(dataset, batch_size=64, shuffle=False)
+    train_loader = BatchLoader(train_dataset, batch_size=128, shuffle=True)
+    valid_loader = BatchLoader(valid_dataset, batch_size=256, shuffle=False)
 
-    model.fit(loader.load(), steps_per_epoch=loader.steps_per_epoch, epochs=100)
+    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=100)
 
-    print(model.summary())
+    loss = model.evaluate(valid_loader.load(), steps=valid_loader.steps_per_epoch)
+    print('Test loss: {}'.format(loss))
+
+    '''
+    data = valid_loader.load().__next__()
+    pred = model.predict(data[0])
+    for i, j in zip(data[1], pred):
+        print(i, j)
+    '''

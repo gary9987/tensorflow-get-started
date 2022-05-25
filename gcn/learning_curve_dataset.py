@@ -72,10 +72,11 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
 
 
 class LearningCurveDataset(Dataset):
-    def __init__(self, record_dic, record_dir, num_samples, **kwargs):
+    def __init__(self, record_dic, record_dir, start, end, **kwargs):
         self.nodes = 67
         self.n_features = 7
-        self.num_samples = num_samples
+        self.start = start
+        self.end = end
         # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
         # 'maxpool2x2': 6,
         self.ops_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4}
@@ -86,7 +87,7 @@ class LearningCurveDataset(Dataset):
     def read(self):
         graph_list = []
 
-        for record in self.record_dic[: self.num_samples]:
+        for record in self.record_dic[self.start: self.end + 1]:
             matrix, ops, layers, log_file = np.array(record['matrix']), record['ops'], record['layers'], record[
                 'log_file']
 
@@ -228,7 +229,6 @@ class LearningCurveDataset(Dataset):
                                     e[i + node_start_no][j + node_start_no][0] = node_channels[j]
 
             graph_list.append(Graph(a=adj_matrix, e=e, x=x, y=y))
-
 
         return graph_list
 
