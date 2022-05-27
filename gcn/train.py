@@ -32,25 +32,24 @@ if __name__ == '__main__':
     file.close()
 
     train_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
-                                         end=19999)
-    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=20000,
-                                         end=29999)
+                                         end=1999, inputs_shape=(None, 32, 32, 3), num_classes=10)
+    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=2000,
+                                         end=2999, inputs_shape=(None, 32, 32, 3), num_classes=10)
     print(train_dataset, valid_dataset)
 
     model = GNN_Model(n_hidden=128)
-    model.compile('adam', 'mean_squared_error', metrics=['acc'])
+    model.compile('adam', 'mean_squared_error', metrics=['mse'])
 
     train_loader = BatchLoader(train_dataset, batch_size=128, shuffle=True)
     valid_loader = BatchLoader(valid_dataset, batch_size=256, shuffle=False)
 
-    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=100)
+    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=150)
 
     loss = model.evaluate(valid_loader.load(), steps=valid_loader.steps_per_epoch)
     print('Test loss: {}'.format(loss))
 
-    '''
     data = valid_loader.load().__next__()
     pred = model.predict(data[0])
     for i, j in zip(data[1], pred):
         print(i, j)
-    '''
+

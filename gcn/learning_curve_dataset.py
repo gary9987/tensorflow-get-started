@@ -3,6 +3,13 @@ import pickle
 import numpy as np
 import csv
 from model_spec import ModelSpec
+import tensorflow as tf
+from tensorflow.python.profiler.model_analyzer import profile
+from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
+from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2_as_graph
+import model_util
+from classifier import Classifier
+from model_builder import build_arch_model
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
@@ -71,15 +78,40 @@ def compute_vertex_channels(input_channels, output_channels, matrix):
     return vertex_channels
 
 
+def get_flops(model, layername):
+    concrete = tf.function(lambda inputs: model(inputs))
+    concrete_func = concrete.get_concrete_function(
+        [tf.TensorSpec([1, *inputs.shape[1:]]) for inputs in model.inputs])
+    frozen_func, graph_def = convert_variables_to_constants_v2_as_graph(concrete_func)
+    with tf.Graph().as_default() as graph:
+        tf.graph_util.import_graph_def(graph_def, name='')
+        run_meta = tf.compat.v1.RunMetadata()
+
+        opts = (tf.compat.v1.profiler.ProfileOptionBuilder(
+            tf.compat.v1.profiler.ProfileOptionBuilder.float_operation())
+                .with_node_names(show_name_regexes=['.*' + layername + '/.*'])
+                .build())
+        flops = tf.compat.v1.profiler.profile(graph=graph, run_meta=run_meta, cmd="scope", options=opts)
+
+        return flops.total_float_ops
+
+
+def get_params(layer):
+    return layer.count_params()
+
+
 class LearningCurveDataset(Dataset):
-    def __init__(self, record_dic, record_dir, start, end, **kwargs):
+    def __init__(self, record_dic, record_dir, inputs_shape, num_classes, start, end, **kwargs):
         self.nodes = 67
-        self.n_features = 7
+        self.num_features = 9
+        self.inputs_shape = inputs_shape
+        self.num_classes = num_classes
         self.start = start
         self.end = end
         # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
         # 'maxpool2x2': 6,
-        self.ops_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4}
+        self.features_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4,
+                              'Classifier': 5, 'maxpool2x2': 6, 'flops': 7, 'params': 8}
         self.record_dir = record_dir
         self.record_dic = record_dic
         super().__init__(**kwargs)
@@ -90,6 +122,12 @@ class LearningCurveDataset(Dataset):
         for record in self.record_dic[self.start: self.end + 1]:
             matrix, ops, layers, log_file = np.array(record['matrix']), record['ops'], record['layers'], record[
                 'log_file']
+            spec = ModelSpec(np.array(matrix), ops)
+            num_nodes = matrix.shape[0]
+            # build model for get metadata in part of Node features
+            model = build_arch_model(spec, self.inputs_shape)
+            model.add(tf.keras.Sequential([Classifier(self.num_classes, spec.data_format)]))
+            model.build([*self.inputs_shape])
 
             # Labels Y
             y = np.zeros(3)  # train_acc, valid_acc, test_acc
@@ -103,38 +141,50 @@ class LearningCurveDataset(Dataset):
                 y[2] = tmp[-1]['test_acc']
 
             # Node features X
-            x = np.zeros((self.nodes, self.n_features), dtype=float)
-            ops2idx = [self.ops_dict[op] for op in ops]
+            x = np.zeros((self.nodes, self.num_features), dtype=float)  # nodes * (features + metadata)
             for now_layer in range(11 + 1):
                 if now_layer == 0:
-                    x[now_layer][2] = 1  # stem is a 'conv3x3-bn-relu' type
+                    x[0][self.features_dict['conv3x3-bn-relu']] = 1  # stem is a 'conv3x3-bn-relu' type
+                    x[0][self.features_dict['flops']] = get_flops(model, model.layers[now_layer].name)
+                    x[0][self.features_dict['params']] = get_params(model.layers[now_layer])
                 elif now_layer == 4:
-                    x[22][6] = 1  # maxpool2x2
+                    x[22][self.features_dict['maxpool2x2']] = 1  # maxpool2x2
+                    x[22][self.features_dict['flops']] = get_flops(model, model.layers[now_layer].name)
+                    x[22][self.features_dict['params']] = get_params(model.layers[now_layer])
                 elif now_layer == 8:
-                    x[44][6] = 1  # maxpool2x2
+                    x[44][self.features_dict['maxpool2x2']] = 1  # maxpool2x2
+                    x[44][self.features_dict['flops']] = get_flops(model, model.layers[now_layer].name)
+                    x[44][self.features_dict['params']] = get_params(model.layers[now_layer])
                 else:
+                    cell_layer = model.get_layer(name=model.layers[now_layer].name)
                     now_group = now_layer // 4 + 1
                     node_start_no = now_group + 7 * (now_layer - now_group)
-                    for i in range(len(ops2idx)):
-                        x[i + node_start_no][ops2idx[i]] = 1
-            x[66][5] = 1
+                    for i in range(len(ops)):
+                        x[i + node_start_no][self.features_dict[ops[i]]] = 1
+                        if 1 <= i <= 5:  # cell_layer ops
+                            x[i + node_start_no][self.features_dict['flops']] = get_flops(model, cell_layer.ops[i].name)
+                            x[i + node_start_no][self.features_dict['params']] = get_params(cell_layer.ops[i])
+
+            x[66][self.features_dict['Classifier']] = 1
+            x[66][self.features_dict['flops']] = get_flops(model, model.layers[12].name)
+            x[66][self.features_dict['params']] = get_params(model.layers[12])
 
             # Adjacency matrix A
             adj_matrix = np.zeros((self.nodes, self.nodes), dtype=float)
-            
-            #0 convbn 128 
-            #1 cell    
-            #8 cell
-            #15 cell
-            #22 maxpool
-            #23 cell
-            #30 cell
-            #37 cell
-            #44 maxpool
-            #45 cell
-            #52 cell
-            #59 cell
-            
+
+            # 0 convbn 128
+            # 1 cell
+            # 8 cell
+            # 15 cell
+            # 22 maxpool
+            # 23 cell
+            # 30 cell
+            # 37 cell
+            # 44 maxpool
+            # 45 cell
+            # 52 cell
+            # 59 cell
+
             for now_layer in range(layers + 1):
                 if now_layer == 0:
                     if now_layer == layers:
@@ -168,10 +218,8 @@ class LearningCurveDataset(Dataset):
                                 if matrix[i][j] == 1:
                                     adj_matrix[i + node_start_no][j + node_start_no] = 1
 
-
             # Edges E
             e = np.zeros((self.nodes, self.nodes, 1), dtype=float)
-            spec = ModelSpec(np.array(matrix), ops)
 
             for now_layer in range(layers + 1):
                 if now_layer == 0:
@@ -203,8 +251,8 @@ class LearningCurveDataset(Dataset):
                     else:
                         tmp_channels = compute_vertex_channels(now_channel, now_channel, spec.matrix)
 
-                    # fix channels length to nodes num
-                    node_channels = [0] * self.n_features
+                    # fix channels length to number of nudes
+                    node_channels = [0] * num_nodes
                     if len(node_channels) == len(tmp_channels):
                         node_channels = tmp_channels
                     else:
