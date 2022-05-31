@@ -10,6 +10,7 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 import model_util
 from classifier import Classifier
 from model_builder import build_arch_model
+import os
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
@@ -108,6 +109,7 @@ class LearningCurveDataset(Dataset):
         self.num_classes = num_classes
         self.start = start
         self.end = end
+        self.file_path = 'LearningCurveDataset'
         # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
         # 'maxpool2x2': 6,
         self.features_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4,
@@ -116,6 +118,192 @@ class LearningCurveDataset(Dataset):
         self.record_dic = record_dic
         super().__init__(**kwargs)
 
+    def download(self):  # preprocessing
+        if not os.path.exists(self.file_path):
+            os.mkdir(self.file_path)
+
+        for record, no in zip(self.record_dic[self.start: self.end + 1], range(self.start, self.end + 1)):
+            if os.path.exists(os.path.join(self.file_path, f'graph_{no}.npz')):
+                continue
+
+            matrix, ops, layers, log_file = np.array(record['matrix']), record['ops'], record['layers'], record[
+                'log_file']
+            spec = ModelSpec(np.array(matrix), ops)
+            num_nodes = matrix.shape[0]
+            # build model for get metadata in part of Node features
+            model = build_arch_model(spec, self.inputs_shape)
+            model.add(tf.keras.Sequential([Classifier(self.num_classes, spec.data_format)]))
+            model.build([*self.inputs_shape])
+
+            # Labels Y
+            y = np.zeros(3)  # train_acc, valid_acc, test_acc
+            with open(self.record_dir + log_file) as f:
+                rows = csv.DictReader(f)
+                tmp = []
+                for row in rows:
+                    tmp.append(row)
+                y[0] = tmp[-1]['accuracy']
+                y[1] = tmp[-1]['val_accuracy']
+                y[2] = tmp[-1]['test_acc']
+
+            # Node features X
+            x = np.zeros((self.nodes, self.num_features), dtype=float)  # nodes * (features + metadata)
+            for now_layer in range(11 + 1):
+                if now_layer == 0:
+                    x[0][self.features_dict['conv3x3-bn-relu']] = 1  # stem is a 'conv3x3-bn-relu' type
+                    x[0][self.features_dict['flops']] = get_flops(model, model.layers[now_layer].name)
+                    x[0][self.features_dict['params']] = get_params(model.layers[now_layer])
+                elif now_layer == 4:
+                    x[22][self.features_dict['maxpool2x2']] = 1  # maxpool2x2
+                    x[22][self.features_dict['flops']] = get_flops(model, model.layers[now_layer].name)
+                    x[22][self.features_dict['params']] = get_params(model.layers[now_layer])
+                elif now_layer == 8:
+                    x[44][self.features_dict['maxpool2x2']] = 1  # maxpool2x2
+                    x[44][self.features_dict['flops']] = get_flops(model, model.layers[now_layer].name)
+                    x[44][self.features_dict['params']] = get_params(model.layers[now_layer])
+                else:
+                    cell_layer = model.get_layer(name=model.layers[now_layer].name)
+                    now_group = now_layer // 4 + 1
+                    node_start_no = now_group + 7 * (now_layer - now_group)
+
+                    skip_cot = 0
+                    for i in range(len(ops)):
+                        x[i + node_start_no][self.features_dict[ops[i]]] = 1
+                        if 1 <= i <= len(cell_layer.ops):  # cell_layer ops
+                            if len(cell_layer.ops) == 5:  # no need to skip
+                                x[i + node_start_no][self.features_dict['flops']] = get_flops(model, cell_layer.ops[i].name)
+                                x[i + node_start_no][self.features_dict['params']] = get_params(cell_layer.ops[i])
+                            else:
+                                if np.all(matrix[i] == 0):
+                                    skip_cot += 1
+                                x[i + node_start_no + skip_cot][self.features_dict['flops']] = \
+                                    get_flops(model, cell_layer.ops[i].name)
+                                x[i + node_start_no + skip_cot][self.features_dict['params']] = get_params(cell_layer.ops[i])
+
+            x[66][self.features_dict['Classifier']] = 1
+            x[66][self.features_dict['flops']] = get_flops(model, model.layers[12].name)
+            x[66][self.features_dict['params']] = get_params(model.layers[12])
+
+            # Adjacency matrix A
+            adj_matrix = np.zeros((self.nodes, self.nodes), dtype=float)
+
+            # 0 convbn 128
+            # 1 cell
+            # 8 cell
+            # 15 cell
+            # 22 maxpool
+            # 23 cell
+            # 30 cell
+            # 37 cell
+            # 44 maxpool
+            # 45 cell
+            # 52 cell
+            # 59 cell
+
+            for now_layer in range(layers + 1):
+                if now_layer == 0:
+                    if now_layer == layers:
+                        adj_matrix[0][self.nodes - 1] = 1  # to classifier
+                    else:
+                        adj_matrix[0][1] = 1  # stem to input node
+                elif now_layer == 4:
+                    adj_matrix[21][22] = 1  # output to maxpool
+                    if now_layer == layers:
+                        adj_matrix[22][self.nodes - 1] = 1  # to classifier
+                    else:
+                        adj_matrix[22][23] = 1  # maxpool to input
+                elif now_layer == 8:
+                    adj_matrix[43][44] = 1  # output to maxpool
+                    if now_layer == layers:
+                        adj_matrix[44][self.nodes - 1] = 1  # to classifier
+                    else:
+                        adj_matrix[44][45] = 1  # maxpool to input
+                else:
+                    now_group = now_layer // 4 + 1
+                    node_start_no = now_group + 7 * (now_layer - now_group)
+                    for i in range(matrix.shape[0]):
+                        if i == 6:
+                            if now_layer == layers:
+                                adj_matrix[i + node_start_no][self.nodes - 1] = 1  # to classifier
+                            else:
+                                adj_matrix[i + node_start_no][
+                                    i + node_start_no + 1] = 1  # output node to next input node
+                        else:
+                            for j in range(matrix.shape[1]):
+                                if matrix[i][j] == 1:
+                                    adj_matrix[i + node_start_no][j + node_start_no] = 1
+
+            # Edges E
+            e = np.zeros((self.nodes, self.nodes, 1), dtype=float)
+
+            for now_layer in range(layers + 1):
+                if now_layer == 0:
+                    if now_layer == layers:
+                        e[0][self.nodes - 1][0] = 128  # to classifier
+                    else:
+                        e[0][1][0] = 128  # stem to input node
+                elif now_layer == 4:
+                    e[21][22][0] = 128  # output to maxpool
+                    if now_layer == layers:
+                        e[22][self.nodes - 1][0] = 128
+                    else:
+                        e[22][23][0] = 128  # maxpool to input
+                elif now_layer == 8:
+                    e[43][44][0] = 256  # output to maxpool
+                    if now_layer == layers:
+                        e[44][self.nodes - 1][0] = 256
+                    else:
+                        e[44][45][0] = 256  # maxpool to input
+                else:
+                    now_group = now_layer // 4 + 1
+                    node_start_no = now_group + 7 * (now_layer - now_group)
+                    now_channel = now_group * 128
+
+                    if now_layer == 1:
+                        tmp_channels = compute_vertex_channels(now_channel, now_channel, spec.matrix)
+                    elif now_layer == 5 or now_layer == 9:
+                        tmp_channels = compute_vertex_channels(now_channel // 2, now_channel, spec.matrix)
+                    else:
+                        tmp_channels = compute_vertex_channels(now_channel, now_channel, spec.matrix)
+
+                    # fix channels length to number of nudes
+                    node_channels = [0] * num_nodes
+                    if len(node_channels) == len(tmp_channels):
+                        node_channels = tmp_channels
+                    else:
+                        now_cot = 0
+                        for n in range(len(tmp_channels)):
+                            if np.all(matrix[now_cot] == 0) and now_cot != 6:
+                                now_cot += 1
+                                node_channels[now_cot] = tmp_channels[n]
+                            else:
+                                node_channels[now_cot] = tmp_channels[n]
+                            now_cot += 1
+
+                    for i in range(matrix.shape[0]):
+                        if i == 6:  # output node to next input node
+                            if now_layer == layers:
+                                e[i + node_start_no][self.nodes - 1][0] = now_channel
+                            else:
+                                e[i + node_start_no][i + node_start_no + 1][0] = now_channel
+                        else:
+                            for j in range(matrix.shape[1]):
+                                if matrix[i][j] == 1:
+                                    e[i + node_start_no][j + node_start_no][0] = node_channels[j]
+
+            filename = os.path.join(self.file_path, f'graph_{no}.npz')
+            np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
+
+    def read(self):
+        output = []
+        for i in range(self.start, self.end + 1):
+            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+            output.append(
+                Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
+            )
+        return output
+
+    '''
     def read(self):
         graph_list = []
 
@@ -279,6 +467,7 @@ class LearningCurveDataset(Dataset):
             graph_list.append(Graph(a=adj_matrix, e=e, x=x, y=y))
 
         return graph_list
+        '''
 
 
 if __name__ == '__main__':
@@ -286,6 +475,7 @@ if __name__ == '__main__':
     record = pickle.load(file)
     file.close()
 
-    dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', num_samples=2000)
-    dataset.read()
-    print(dataset[0])
+    dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
+                                         end=9999, inputs_shape=(None, 32, 32, 3), num_classes=10)
+
+
