@@ -6,6 +6,7 @@ from tensorflow.keras.layers import Dense, Dropout
 from spektral.layers import ECCConv, GlobalSumPool
 from spektral.data import BatchLoader
 from learning_curve_dataset import LearningCurveDataset
+import numpy as np
 
 
 class GNN_Model(Model):
@@ -26,18 +27,29 @@ class GNN_Model(Model):
         return out
 
 
+class RemoveParAndFlopTransform:
+    def __call__(self, graph):
+        if graph.x is not None:
+            graph.x = np.delete(graph.x, [7, 8], 1)
+
+        return graph
+
+
 if __name__ == '__main__':
     file = open('../incremental/cifar10_log/cifar10.pkl', 'rb')
     record = pickle.load(file)
     file.close()
 
     train_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
-                                         end=10000, inputs_shape=(None, 32, 32, 3), num_classes=10)
-    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=10001,
-                                         end=20000, inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                         end=1000, inputs_shape=(None, 32, 32, 3), num_classes=10)
+    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=1001,
+                                         end=2000, inputs_shape=(None, 32, 32, 3), num_classes=10)
 
+    transform = RemoveParAndFlopTransform()
+    train_dataset.apply(transform)
+    valid_dataset.apply(transform)
 
-    print(train_dataset, valid_dataset)
+    print(train_dataset[0], valid_dataset)
 
     model = GNN_Model(n_hidden=128)
     model.compile('adam', 'mean_squared_error', metrics=['mse'])
