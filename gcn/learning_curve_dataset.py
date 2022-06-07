@@ -11,7 +11,7 @@ import model_util
 from classifier import Classifier
 from model_builder import build_arch_model
 import os
-
+import wget
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
     """
@@ -118,6 +118,23 @@ class LearningCurveDataset(Dataset):
         self.record_dic = record_dic
         super().__init__(**kwargs)
 
+    def download(self):
+        if not os.path.exists(self.file_path):
+            print('Downloading...')
+            file_name = wget.download('https://www.dropbox.com/s/8crtrh8weuoi5d2/LearningCurveDataset.zip?dl=1')
+            os.system('unzip {}'.format(file_name))
+            print('Save dataset to {}'.format(file_name))
+
+    def read(self):
+        output = []
+        for i in range(self.start, self.end + 1):
+            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+            output.append(
+                Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
+            )
+        return output
+
+    '''
     def download(self):  # preprocessing
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
@@ -293,15 +310,8 @@ class LearningCurveDataset(Dataset):
 
             filename = os.path.join(self.file_path, f'graph_{no}.npz')
             np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
+    '''
 
-    def read(self):
-        output = []
-        for i in range(self.start, self.end + 1):
-            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
-            output.append(
-                Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
-            )
-        return output
 
     '''
     def read(self):

@@ -32,9 +32,9 @@ if __name__ == '__main__':
     file.close()
 
     train_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
-                                         end=10, inputs_shape=(None, 32, 32, 3), num_classes=10)
-    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=11,
-                                         end=20, inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                         end=10000, inputs_shape=(None, 32, 32, 3), num_classes=10)
+    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=10001,
+                                         end=20000, inputs_shape=(None, 32, 32, 3), num_classes=10)
 
 
     print(train_dataset, valid_dataset)
