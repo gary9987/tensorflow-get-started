@@ -30,6 +30,7 @@ class GNN_Model(Model):
 class RemoveParAndFlopTransform:
     def __call__(self, graph):
         if graph.x is not None:
+            # Remove the columns of features include parameters and FLOPs
             graph.x = np.delete(graph.x, [7, 8], 1)
 
         return graph
