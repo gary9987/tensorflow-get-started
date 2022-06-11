@@ -294,6 +294,8 @@ def build_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks
     model = tf.keras.Sequential()
     # stem
     model.add(base_ops.ConvBnRelu(3, 128, is_training, spec.data_format))
+    shape = list(inputs_shape)
+    shape[3] = 128
 
     for i in range(num_stacks):
         if i > 0:
@@ -304,12 +306,16 @@ def build_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks
                 data_format=spec.data_format))
 
             init_channel *= 2
+            shape[1] = shape[1] // 2
+            shape[2] = shape[2] // 2
 
         for j in range(num_cells):
+            if j > 0:
+                shape[3] = init_channel
             model.add(CellModel(spec,
-                                inputs_shape=inputs_shape,
+                                inputs_shape=tuple(shape),
                                 channels=init_channel,
-                                is_training=is_training))
+                                is_training=is_training).build_graph())
 
     #model.add(tf.keras.layers.GlobalAveragePooling2D(data_format=spec.data_format))
     return model
@@ -339,7 +345,10 @@ if __name__ == '__main__':
         layer_range=None, show_layer_activations=False)
 
     for layer_no in range(len(model.layers)):
-        print(model.layers[layer_no].name)
+        if 'model' in model.layers[layer_no].name:
+            cell = model.layers[layer_no]
+            for i in range(len(cell.layers)):
+                print(cell.layers[i].output)
 
     '''
     del model
