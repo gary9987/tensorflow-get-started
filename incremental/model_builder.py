@@ -112,7 +112,8 @@ def truncate(inputs_shape, inputs, channels, data_format):
             return tf.slice(inputs, [0, 0, 0, 0], [-1, channels, -1, -1])
 
 
-class CellModel(tf.keras.layers.Layer):
+#class CellModel(tf.keras.layers.Layer):
+class CellModel(tf.keras.Model):
     def __init__(self, spec: ModelSpec, inputs_shape, channels, is_training):
         super(CellModel, self).__init__()
 
@@ -290,6 +291,37 @@ class Arch_Model(tf.keras.Model):
 '''
 
 
+def build_arch_model_original(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks=3, num_cells=3, is_training=None):
+    model = tf.keras.Sequential()
+    # stem
+    model.add(base_ops.ConvBnRelu(3, 128, is_training, spec.data_format))
+    shape = list(inputs_shape)
+    shape[3] = 128
+
+    for i in range(num_stacks):
+        if i > 0:
+            model.add(tf.keras.layers.MaxPool2D(
+                pool_size=(2, 2),
+                strides=(2, 2),
+                padding='same',
+                data_format=spec.data_format))
+
+            init_channel *= 2
+            shape[1] = shape[1] // 2
+            shape[2] = shape[2] // 2
+
+        for j in range(num_cells):
+            if j > 0:
+                shape[3] = init_channel
+            model.add(CellModel(spec,
+                                inputs_shape=tuple(shape),
+                                channels=init_channel,
+                                is_training=is_training))
+
+    #model.add(tf.keras.layers.GlobalAveragePooling2D(data_format=spec.data_format))
+    return model
+
+
 def build_arch_model(spec: ModelSpec, inputs_shape, init_channel=128, num_stacks=3, num_cells=3, is_training=None):
     model = tf.keras.Sequential()
     # stem
@@ -336,7 +368,7 @@ if __name__ == '__main__':
 
     spec = ModelSpec(matrix, ops)
 
-    model = build_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    model = build_arch_model_original(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
     model.build([None, 28, 28, 1])
     print(model.summary())
     tf.keras.utils.plot_model(
@@ -345,11 +377,21 @@ if __name__ == '__main__':
         layer_range=None, show_layer_activations=False)
 
     for layer_no in range(len(model.layers)):
-        if 'model' in model.layers[layer_no].name:
+        print(model.layers[layer_no].name)
+        if 'cell' in model.layers[layer_no].name:
             cell = model.layers[layer_no]
             for i in range(len(cell.layers)):
-                print(cell.layers[i].output)
+                print(cell.layers[i].name)
 
+    del model
+
+    model2 = build_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    for layer_no in range(len(model2.layers)):
+        print(model2.layers[layer_no].name)
+        if 'model' in model2.layers[layer_no].name:
+            cell = model2.layers[layer_no]
+            for i in range(len(cell.layers)):
+                print(cell.layers[i].name)
     '''
     del model
     model2 = build_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
