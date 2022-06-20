@@ -7,6 +7,7 @@ from spektral.layers import ECCConv, GlobalSumPool
 from spektral.data import BatchLoader
 from learning_curve_dataset import LearningCurveDataset
 import numpy as np
+from transformation import *
 
 
 class GNN_Model(Model):
@@ -27,15 +28,6 @@ class GNN_Model(Model):
         return out
 
 
-class RemoveParAndFlopTransform:
-    def __call__(self, graph):
-        if graph.x is not None:
-            # Remove the columns of features include parameters and FLOPs
-            graph.x = np.delete(graph.x, [7, 8], 1)
-
-        return graph
-
-
 if __name__ == '__main__':
     file = open('../incremental/cifar10_log/cifar10.pkl', 'rb')
     record = pickle.load(file)
@@ -46,9 +38,13 @@ if __name__ == '__main__':
     valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=1001,
                                          end=2000, inputs_shape=(None, 32, 32, 3), num_classes=10)
 
-    transform = RemoveParAndFlopTransform()
-    train_dataset.apply(transform)
-    valid_dataset.apply(transform)
+    #transform1 = RemoveParAndFlopTransform()
+    #train_dataset.apply(transform1)
+    #valid_dataset.apply(transform1)
+
+    transform2 = OneHotToIndexTransform()
+    train_dataset.apply(transform2)
+    valid_dataset.apply(transform2)
 
     print(train_dataset[0], valid_dataset)
 
