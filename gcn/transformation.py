@@ -25,3 +25,18 @@ class OneHotToIndexTransform:
             graph.x = np.delete(graph.x, range(1, 7), 1)
 
         return graph
+
+
+class NormalizeParAndFlopTransform:
+    def __call__(self, graph):
+        if graph.x is not None:
+            # Remove the columns of features include parameters and FLOPs
+            flops = graph.x[:, 7] - 28819043.233719405
+            flops /= 68531284.19735347
+            graph.x[:, 7] = flops
+
+            params = graph.x[:, 8] - 98277.40047462686
+            params /= 332440.6417713961
+            graph.x[:, 8] = flops
+
+        return graph

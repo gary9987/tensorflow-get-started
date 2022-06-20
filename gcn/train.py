@@ -42,9 +42,13 @@ if __name__ == '__main__':
     #train_dataset.apply(transform1)
     #valid_dataset.apply(transform1)
 
-    transform2 = OneHotToIndexTransform()
-    train_dataset.apply(transform2)
-    valid_dataset.apply(transform2)
+    #transform2 = OneHotToIndexTransform()
+    #train_dataset.apply(transform2)
+    #valid_dataset.apply(transform2)
+
+    transform3 = NormalizeParAndFlopTransform()
+    train_dataset.apply(transform3)
+    valid_dataset.apply(transform3)
 
     print(train_dataset[0], valid_dataset)
 
