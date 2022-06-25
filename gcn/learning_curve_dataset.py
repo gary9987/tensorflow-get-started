@@ -13,6 +13,7 @@ from model_builder import build_arch_model
 import os
 import wget
 
+
 def compute_vertex_channels(input_channels, output_channels, matrix):
     """
     Computes the number of channels at every vertex.
@@ -113,7 +114,7 @@ class LearningCurveDataset(Dataset):
         # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
         # 'maxpool2x2': 6,
         self.features_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4,
-                              'Classifier': 5, 'maxpool2x2': 6, 'flops': 7, 'params': 8}
+                              'Classifier': 5, 'maxpool2x2': 6, 'flops': 7, 'params': 8, 'num_layer': 9}
         self.record_dir = record_dir
         self.record_dic = record_dic
         super().__init__(**kwargs)
@@ -479,6 +480,74 @@ class LearningCurveDataset(Dataset):
         return graph_list
         '''
 
+    def add_num_layer_to_node_feature(self):  # preprocessing
+
+        for record, no in zip(self.record_dic[self.start: self.end + 1], range(self.start, self.end + 1)):
+            if not os.path.exists(os.path.join(self.file_path, f'graph_{no}.npz')):
+                print('Error, graph_{no}.npz not exit.')
+                exit()
+
+            matrix, ops, layers, log_file = np.array(record['matrix']), record['ops'], record['layers'], record[
+                'log_file']
+
+            data = np.load(os.path.join(self.file_path, f'graph_{no}.npz'))
+            x = data['x']
+            e = data['e']
+            a = data['a']
+            y = data['y']
+
+            # already be processed
+            if x.shape[1] > 9:
+                continue
+
+            num_nodes = matrix.shape[0]
+            node_depth = [0] * num_nodes
+            node_depth[0] = 1
+
+            def dfs(node: int, now_depth: int):
+                now_depth += 1
+                for node_idx in range(num_nodes):
+                    if matrix[node][node_idx] != 0:
+                        node_depth[node_idx] = max(node_depth[node_idx], now_depth)
+                        dfs(node_idx, now_depth)
+
+            # Calculate the depth of each node
+            dfs(0, 1)
+            # [0, 1, 2, 1, 2, 3, 4]
+
+            # num layer indicate that the node is on the layer i (1-base).
+
+            # Add an additional column for x
+            tmp_x = np.zeros((x.shape[0], x.shape[1] + 1))
+            tmp_x[:, :-1] = x
+            x = tmp_x
+
+            # Node features X
+            accumulation_layer = 0
+            for now_layer in range(11 + 1):
+                if now_layer == 0:
+                    accumulation_layer += 1
+                    x[0][self.features_dict['num_layer']] = accumulation_layer
+                elif now_layer == 4:
+                    accumulation_layer += 1
+                    x[22][self.features_dict['num_layer']] = accumulation_layer
+                elif now_layer == 8:
+                    accumulation_layer += 1
+                    x[44][self.features_dict['num_layer']] = accumulation_layer
+                else:
+                    now_group = now_layer // 4 + 1
+                    node_start_no = now_group + 7 * (now_layer - now_group)
+
+                    for i in range(len(ops)):
+                        x[i + node_start_no][self.features_dict['num_layer']] = accumulation_layer + node_depth[i]
+
+                    accumulation_layer += node_depth[-1]
+
+            x[66][self.features_dict['num_layer']] = accumulation_layer + 1
+
+            filename = os.path.join(self.file_path, f'graph_{no}.npz')
+            np.savez(filename, a=a, x=x, e=e, y=y)
+
 
 if __name__ == '__main__':
     file = open('../incremental/cifar10_log/cifar10.pkl', 'rb')
@@ -486,6 +555,8 @@ if __name__ == '__main__':
     file.close()
 
     dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
-                                         end=9999, inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                         end=29999, inputs_shape=(None, 32, 32, 3), num_classes=10)
+
+    dataset.add_num_layer_to_node_feature()
 
 
