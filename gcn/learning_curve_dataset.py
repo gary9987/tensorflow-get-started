@@ -122,9 +122,10 @@ class LearningCurveDataset(Dataset):
     def download(self):
         if not os.path.exists(self.file_path):
             print('Downloading...')
-            file_name = wget.download('https://www.dropbox.com/s/8crtrh8weuoi5d2/LearningCurveDataset.zip?dl=1')
-            os.system('unzip {}'.format(file_name))
+            file_name = wget.download('https://www.dropbox.com/s/4dwrrxdqja5ui27/LearningCurveDataset.zip?dl=1')
             print('Save dataset to {}'.format(file_name))
+            os.system('unzip {}'.format(file_name))
+            print(f'Unzip dataset finish.')
 
     def read(self):
         output = []
@@ -557,6 +558,6 @@ if __name__ == '__main__':
     dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
                                          end=29999, inputs_shape=(None, 32, 32, 3), num_classes=10)
 
-    dataset.add_num_layer_to_node_feature()
+
 
 
