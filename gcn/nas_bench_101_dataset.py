@@ -1,3 +1,4 @@
+import logging
 import random
 from spektral.data import Dataset, Graph
 import pickle
@@ -17,6 +18,8 @@ from os import path
 import re
 import hashlib
 import model_builder
+
+logging.basicConfig(filename='nas_bench_101_dataset.log', level=logging.INFO)
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
@@ -316,7 +319,10 @@ class NasBench101Dataset(Dataset):
     def __init__(self, record_dic, shuffle_seed, inputs_shape, num_classes, start, end, **kwargs):
         self.nodes = 67
         self.features_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4,
-                              'Classifier': 5, 'maxpool2x2': 6, 'flops': 7, 'params': 8, 'num_layer': 9}
+                              'Classifier': 5, 'maxpool2x2': 6, 'flops': 7, 'params': 8, 'num_layer': 9,
+                              'input_shape_1': 10, 'input_shape_2': 11, 'input_shape_3': 12, 'output_shape_1': 13,
+                              'output_shape_2': 14, 'output_shape_3': 15}
+
         self.num_features = len(self.features_dict)
         self.inputs_shape = inputs_shape
         self.num_classes = num_classes
@@ -326,9 +332,6 @@ class NasBench101Dataset(Dataset):
         self.shuffle_seed = shuffle_seed
         self.cell_filename = './nas-bench-101-data/nasbench_101_cell_list.pkl'
         self.total_layers = 11
-        # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
-        # 'maxpool2x2': 6,
-
         self.record_dic = record_dic
         random.seed(shuffle_seed)
         random.shuffle(self.record_dic)
@@ -352,11 +355,11 @@ class NasBench101Dataset(Dataset):
         if not os.path.exists(profile_dir):
             os.mkdir(profile_dir)
 
-        total_layers = 11
+        total_layers = self.total_layers
 
         for record, no in zip(self.record_dic[self.start: self.end + 1], range(self.start, self.end + 1)):
-            #if os.path.exists(os.path.join(self.file_path, f'graph_{no}.npz')):
-            #    continue
+            if os.path.exists(os.path.join(self.file_path, f'graph_{no}.npz')):
+                continue
 
             matrix, ops, layers = np.array(record[0]), record[1], total_layers
             spec = ModelSpec(np.array(matrix), ops)
@@ -404,24 +407,24 @@ class NasBench101Dataset(Dataset):
 
             accumulation_layer = 0
             for now_layer in range(11 + 1):
-                if now_layer == 0:
+                if now_layer == 0 or now_layer == 4 or now_layer == 8:
+                    if now_layer == 0:
+                        offset_idx = 0
+                    elif now_layer == 4:
+                        offset_idx = 22
+                    else:  # now_layer == 8
+                        offset_idx = 44
+
                     accumulation_layer += 1
-                    x[0][self.features_dict['num_layer']] = accumulation_layer
-                    x[0][self.features_dict['conv3x3-bn-relu']] = 1  # stem is a 'conv3x3-bn-relu' type
-                    x[0][self.features_dict['flops']] = get_flops(model, profile_name, model.layers[now_layer].name)
-                    x[0][self.features_dict['params']] = get_params(model.layers[now_layer])
-                elif now_layer == 4:
-                    accumulation_layer += 1
-                    x[22][self.features_dict['num_layer']] = accumulation_layer
-                    x[22][self.features_dict['maxpool2x2']] = 1  # maxpool2x2
-                    x[22][self.features_dict['flops']] = get_flops(model, profile_name, model.layers[now_layer].name)
-                    x[22][self.features_dict['params']] = get_params(model.layers[now_layer])
-                elif now_layer == 8:
-                    accumulation_layer += 1
-                    x[44][self.features_dict['num_layer']] = accumulation_layer
-                    x[44][self.features_dict['maxpool2x2']] = 1  # maxpool2x2
-                    x[44][self.features_dict['flops']] = get_flops(model, profile_name, model.layers[now_layer].name)
-                    x[44][self.features_dict['params']] = get_params(model.layers[now_layer])
+                    x[offset_idx][self.features_dict['num_layer']] = accumulation_layer
+                    x[offset_idx][self.features_dict['conv3x3-bn-relu']] = 1  # stem is a 'conv3x3-bn-relu' type
+                    x[offset_idx][self.features_dict['flops']] = get_flops(model, profile_name, model.layers[now_layer].name)
+                    x[offset_idx][self.features_dict['params']] = get_params(model.layers[now_layer])
+                    tensor = get_tensor_shape(model_tensor, model.layers[now_layer].name)
+                    input_shape, output_shape = tensor[0], tensor[1]
+                    for dim in range(1, 3+1):
+                        x[offset_idx][self.features_dict['input_shape_{}'.format(str(dim))]] = input_shape[dim]
+                        x[offset_idx][self.features_dict['output_shape_{}'.format(str(dim))]] = output_shape[dim]
                 else:
                     cell_layer = model.get_layer(name=model.layers[now_layer].name)
                     now_group = now_layer // 4 + 1
@@ -433,16 +436,20 @@ class NasBench101Dataset(Dataset):
                         x[i + node_start_no][self.features_dict[ops[i]]] = 1
                         if 1 <= i <= len(cell_layer.ops):  # cell_layer ops
                             if len(cell_layer.ops) == 5:  # no need to skip
-                                x[i + node_start_no][self.features_dict['flops']] = \
-                                    get_flops(model, profile_name, cell_layer.ops[i].name)
-                                x[i + node_start_no][self.features_dict['params']] = get_params(cell_layer.ops[i])
+                                offset_idx = i + node_start_no
                             else:
                                 if np.all(matrix[i] == 0):
                                     skip_cot += 1
-                                x[i + node_start_no + skip_cot][self.features_dict['flops']] = \
-                                    get_flops(model, profile_name, cell_layer.ops[i].name)
-                                x[i + node_start_no + skip_cot][self.features_dict['params']] = \
-                                    get_params(cell_layer.ops[i])
+                                offset_idx = i + node_start_no + skip_cot
+
+                            x[offset_idx][self.features_dict['flops']] = \
+                                get_flops(model, profile_name, cell_layer.ops[i].name)
+                            x[offset_idx][self.features_dict['params']] = get_params(cell_layer.ops[i])
+                            tensor = get_tensor_shape(model_tensor, cell_layer.ops[i].name)
+                            input_shape, output_shape = tensor[0], tensor[1]
+                            for dim in range(1, 3 + 1):
+                                x[offset_idx][self.features_dict['input_shape_{}'.format(str(dim))]] = input_shape[dim]
+                                x[offset_idx][self.features_dict['output_shape_{}'.format(str(dim))]] = output_shape[dim]
 
                     accumulation_layer += node_depth[-1]
 
@@ -450,6 +457,13 @@ class NasBench101Dataset(Dataset):
             x[66][self.features_dict['Classifier']] = 1
             x[66][self.features_dict['flops']] = get_flops(model, profile_name, model.layers[12].name)
             x[66][self.features_dict['params']] = get_params(model.layers[12])
+            tensor = get_tensor_shape(model_tensor, model.layers[12].name)
+            input_shape, output_shape = tensor[0], tensor[1]
+            for dim in range(1, 3 + 1):
+                x[66][self.features_dict['input_shape_{}'.format(str(dim))]] = input_shape[dim]
+
+            # The output_shape of classifier is only two dimension ([None, classes_num])
+            x[66][self.features_dict['output_shape_1']] = output_shape[1]
 
             # Adjacency matrix A
             adj_matrix = np.zeros((self.nodes, self.nodes), dtype=float)
@@ -560,6 +574,7 @@ class NasBench101Dataset(Dataset):
 
             filename = os.path.join(self.file_path, f'graph_{no}.npz')
             np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
+            logging.info('graph_{no}.npz is saved.')
 
     def read(self):
         output = []
