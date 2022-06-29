@@ -574,7 +574,7 @@ class NasBench101Dataset(Dataset):
 
             filename = os.path.join(self.file_path, f'graph_{no}.npz')
             np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
-            logging.info('graph_{no}.npz is saved.')
+            logging.info(f'graph_{no}.npz is saved.')
 
     def read(self):
         output = []
@@ -592,4 +592,4 @@ if __name__ == '__main__':
     file.close()
 
     dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
-                                 end=1, inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                 end=len(record), inputs_shape=(None, 32, 32, 3), num_classes=10)
