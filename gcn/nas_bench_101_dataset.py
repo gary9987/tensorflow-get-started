@@ -381,10 +381,12 @@ class NasBench101Dataset(Dataset):
             model_tensor.add(tf.keras.Sequential([Classifier(self.num_classes, spec.data_format)]))
 
             # Labels Y
-            y = np.zeros(3)  # train_acc, valid_acc, test_acc
-            y[0] = record[2]['train_accuracy']
-            y[1] = record[2]['validation_accuracy']
-            y[2] = record[2]['test_accuracy']
+            y = np.zeros((3, 4))  # 3 x (train_accuracy, validation_accuracy, test_accuracy, training_time)
+            for query_idx in range(3):
+                y[query_idx][0] = record[2][query_idx]['train_accuracy']
+                y[query_idx][1] = record[2][query_idx]['validation_accuracy']
+                y[query_idx][2] = record[2][query_idx]['test_accuracy']
+                y[query_idx][3] = record[2][query_idx]['training_time']
 
             # Node features X
             x = np.zeros((self.nodes, self.num_features), dtype=float)  # nodes * (features + metadata + num_layer)
