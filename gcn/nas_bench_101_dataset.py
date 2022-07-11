@@ -337,16 +337,16 @@ class NasBench101Dataset(Dataset):
         random.shuffle(self.record_dic)
         super().__init__(**kwargs)
 
-    '''
+
     def download(self):
         if not os.path.exists(self.file_path):
             print('Downloading...')
-            file_name = wget.download('https://www.dropbox.com/s/4dwrrxdqja5ui27/LearningCurveDataset.zip?dl=1')
+            file_name = wget.download('https://www.dropbox.com/s/40lrvb3lcgij5c8/NasBench101Dataset.zip?dl=1')
             print('Save dataset to {}'.format(file_name))
             os.system('unzip {}'.format(file_name))
             print(f'Unzip dataset finish.')
-    '''
 
+    '''
     def download(self):  # preprocessing
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
@@ -577,6 +577,7 @@ class NasBench101Dataset(Dataset):
             filename = os.path.join(self.file_path, f'graph_{no}.npz')
             np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
             logging.info(f'graph_{no}.npz is saved.')
+    '''
 
     def read(self):
         output = []
@@ -593,5 +594,9 @@ if __name__ == '__main__':
     record = pickle.load(file)
     file.close()
 
+    #dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
+    #                             end=len(record), inputs_shape=(None, 32, 32, 3), num_classes=10)
+
+    # Test read()
     dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
-                                 end=len(record), inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                 end=5000, inputs_shape=(None, 32, 32, 3), num_classes=10)
