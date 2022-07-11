@@ -40,3 +40,18 @@ class NormalizeParAndFlopTransform:
             graph.x[:, 8] = flops
 
         return graph
+
+
+class NormalizeParAndFlopTransform_NasBench101:
+    def __call__(self, graph):
+        if graph.x is not None:
+            # Remove the columns of features include parameters and FLOPs
+            flops = graph.x[:, 7] - 28108567.14472483
+            flops /= 67398823.71203184
+            graph.x[:, 7] = flops
+
+            params = graph.x[:, 8] - 95841.84206601226
+            params /= 326745.84386388084
+            graph.x[:, 8] = flops
+
+        return graph
