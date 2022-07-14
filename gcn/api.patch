@@ -1,0 +1,22 @@
+--- nasbench/nasbench/api.py	2022-07-14 22:06:20.705262439 +0800
++++ ../nasbench/nasbench/api.py	2022-06-30 18:49:37.815839943 +0800
+@@ -201,7 +201,7 @@
+     self.training_time_spent = 0.0
+     self.total_epochs_spent = 0
+ 
+-  def query(self, model_spec, epochs=108, stop_halfway=False):
++  def query(self, model_spec, query_idx, epochs=108, stop_halfway=False):
+     """Fetch one of the evaluations for this model spec.
+ 
+     Each call will sample one of the config['num_repeats'] evaluations of the
+@@ -235,8 +235,8 @@
+                              % self.valid_epochs)
+ 
+     fixed_stat, computed_stat = self.get_metrics_from_spec(model_spec)
+-    sampled_index = random.randint(0, self.config['num_repeats'] - 1)
+-    computed_stat = computed_stat[epochs][sampled_index]
++    # sampled_index = random.randint(0, self.config['num_repeats'] - 1)
++    computed_stat = computed_stat[epochs][query_idx]
+ 
+     data = {}
+     data['module_adjacency'] = fixed_stat['module_adjacency']
