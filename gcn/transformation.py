@@ -55,3 +55,26 @@ class NormalizeParAndFlopTransform_NasBench101:
             graph.x[:, 8] = flops
 
         return graph
+
+
+class SelectLabelQueryIdx_NasBench101:
+    def __init__(self, idx):
+        self.idx = idx
+
+    def __call__(self, graph):
+        if graph.y is not None:
+            # Remove the columns of features include parameters and FLOPs
+            new_y = np.array([graph.y[self.idx][i] for i in range(graph.y.shape[1])])
+            graph.y = new_y
+
+        return graph
+
+
+class RemoveTrainingTime_NasBench101:
+    def __call__(self, graph):
+        if graph.y is not None:
+            # Remove the columns of features include parameters and FLOPs
+            graph.y = np.delete(graph.y, [3], 1)
+
+        return graph
+

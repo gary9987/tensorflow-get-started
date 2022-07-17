@@ -316,7 +316,18 @@ def get_model_by_id_and_layer_original(cell_filename, shuffle_seed: int, inputs_
 
 
 class NasBench101Dataset(Dataset):
-    def __init__(self, record_dic, shuffle_seed, inputs_shape, num_classes, start, end, **kwargs):
+    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, **kwargs):
+        """
+        :param start: The start index of data you want to query.
+        :param end: The end index of data you want to query.
+        :param record_dic: open('./nas-bench-101-data/nasbench_101_cell_list.pkl', 'rb')
+        :param shuffle_seed: 0
+        :param inputs_shape: (None, 32, 32, 3)
+        :param num_classes: Number of the classes of the dataset
+
+        Direct use the dataset with set the start and end parameters,
+        or if you want to preprocess again, unmark the marked download() function and set the all parameters.
+        """
         self.nodes = 67
         self.features_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4,
                               'Classifier': 5, 'maxpool2x2': 6, 'flops': 7, 'params': 8, 'num_layer': 9,
@@ -333,10 +344,12 @@ class NasBench101Dataset(Dataset):
         self.cell_filename = './nas-bench-101-data/nasbench_101_cell_list.pkl'
         self.total_layers = 11
         self.record_dic = record_dic
-        random.seed(shuffle_seed)
-        random.shuffle(self.record_dic)
-        super().__init__(**kwargs)
 
+        if self.record_dic is not None:
+            random.seed(shuffle_seed)
+            random.shuffle(self.record_dic)
+
+        super().__init__(**kwargs)
 
     def download(self):
         if not os.path.exists(self.file_path):
