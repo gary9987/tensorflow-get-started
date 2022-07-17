@@ -61,7 +61,8 @@ if __name__ == '__main__':
 
     loss = model.evaluate(valid_loader.load(), steps=valid_loader.steps_per_epoch)
     print('Test loss: {}'.format(loss))
-
+    # Test loss: [0.00380403408780694, 0.00380403408780694]
+    
     data = valid_loader.load().__next__()
     pred = model.predict(data[0])
     for i, j in zip(data[1], pred):
