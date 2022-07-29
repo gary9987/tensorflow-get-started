@@ -13,7 +13,6 @@ class RemoveParAndFlopTransform:
 class OneHotToIndexTransform:
     def __call__(self, graph):
         if graph.x is not None:
-            # Remove the columns of features include parameters and FLOPs
             try:
                 tmp = np.delete(graph.x, [7, 8], 1)
             except:
@@ -30,7 +29,6 @@ class OneHotToIndexTransform:
 class NormalizeParAndFlopTransform:
     def __call__(self, graph):
         if graph.x is not None:
-            # Remove the columns of features include parameters and FLOPs
             flops = graph.x[:, 7] - 28819043.233719405
             flops /= 68531284.19735347
             graph.x[:, 7] = flops
@@ -45,7 +43,6 @@ class NormalizeParAndFlopTransform:
 class NormalizeParAndFlopTransform_NasBench101:
     def __call__(self, graph):
         if graph.x is not None:
-            # Remove the columns of features include parameters and FLOPs
             flops = graph.x[:, 7] - 28108567.14472483
             flops /= 67398823.71203184
             graph.x[:, 7] = flops
@@ -63,9 +60,16 @@ class SelectLabelQueryIdx_NasBench101:
 
     def __call__(self, graph):
         if graph.y is not None:
-            # Remove the columns of features include parameters and FLOPs
             new_y = np.array([graph.y[self.idx][i] for i in range(graph.y.shape[1])])
             graph.y = new_y
+
+        return graph
+
+
+class LabelScale_NasBench101:
+    def __call__(self, graph):
+        if graph.y is not None:
+            graph.y *= 100
 
         return graph
 
@@ -73,8 +77,40 @@ class SelectLabelQueryIdx_NasBench101:
 class RemoveTrainingTime_NasBench101:
     def __call__(self, graph):
         if graph.y is not None:
-            # Remove the columns of features include parameters and FLOPs
             graph.y = np.delete(graph.y, [3], 1)
 
         return graph
 
+
+class NormalizeLayer_NasBench101:
+    def __call__(self, graph):
+        if graph.x is not None:
+            flops = graph.x[:, 9] - 30.528941727204867
+            flops /= 17.807043336964252
+            graph.x[:, 9] = flops
+
+        return graph
+
+
+class Normalize_x_10to15_NasBench101:
+    def __call__(self, graph):
+        if graph.x is not None:
+            flops = graph.x[:, 10] / 32
+            graph.x[:, 10] = flops
+
+            flops = graph.x[:, 11] / 32
+            graph.x[:, 11] = flops
+
+            flops = graph.x[:, 12] / 512
+            graph.x[:, 12] = flops
+
+            flops = graph.x[:, 13] / 32
+            graph.x[:, 13] = flops
+
+            flops = graph.x[:, 14] / 32
+            graph.x[:, 14] = flops
+
+            flops = graph.x[:, 15] / 256
+            graph.x[:, 15] = flops
+
+        return graph

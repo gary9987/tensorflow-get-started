@@ -16,8 +16,8 @@ if __name__ == '__main__':
             data = np.load(os.path.join(file_path, i))
             x = data['x']
             count += x.shape[0]
-            flops = np.append(flops, x[:, 7])
-            params = np.append(params, x[:, 8])
+            flops = np.append(flops, x[:, 9])
+            params = np.append(params, x[:, 9])
 
     print('flops mean = {}, std = {}'.format(str(np.mean(flops)), str(np.std(flops))))
 
@@ -34,4 +34,9 @@ if __name__ == '__main__':
     nas_bench_101_dataset
     flops mean = 28108567.14472483, std = 67398823.71203184
     params mean = 95841.84206601226, std = 326745.84386388084
+    """
+
+    """
+    nas_bench_101_dataset feature9: layer 
+    flops mean = 30.528941727204867, std = 17.807043336964252
     """
