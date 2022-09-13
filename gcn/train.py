@@ -29,10 +29,8 @@ class GNN_Model(Model):
 
 
 if __name__ == '__main__':
-    npz_path = 'LearningCurveDataset'
-
-    train_dataset = LearningCurveDataset(npz_path=npz_path, start=0, end=1000)
-    valid_dataset = LearningCurveDataset(npz_path=npz_path, start=1001, end=2000)
+    train_dataset = LearningCurveDataset(start=0, end=1000)
+    valid_dataset = LearningCurveDataset(start=1001, end=2000)
 
     #transform1 = RemoveParAndFlopTransform()
     #train_dataset.apply(transform1)
