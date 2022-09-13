@@ -103,14 +103,14 @@ def get_params(layer):
 
 
 class LearningCurveDataset(Dataset):
-    def __init__(self, record_dic, record_dir, inputs_shape, num_classes, start, end, **kwargs):
+    def __init__(self, start, end, npz_path=None, record_dic=None, record_dir=None, inputs_shape=None, num_classes=None, **kwargs):
         self.nodes = 67
         self.num_features = 9
         self.inputs_shape = inputs_shape
         self.num_classes = num_classes
         self.start = start
         self.end = end
-        self.file_path = 'LearningCurveDataset'
+        self.file_path = npz_path
         # 'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4, 'Classifier': 5,
         # 'maxpool2x2': 6,
         self.features_dict = {'INPUT': 0, 'conv1x1-bn-relu': 1, 'conv3x3-bn-relu': 2, 'maxpool3x3': 3, 'OUTPUT': 4,
@@ -558,6 +558,6 @@ if __name__ == '__main__':
     dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
                                          end=29999, inputs_shape=(None, 32, 32, 3), num_classes=10)
 
-
+    #dataset = LearningCurveDataset(npz_path='LearningCurveDataset', start=0, end=29999)
 
 

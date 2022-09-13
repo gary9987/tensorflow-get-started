@@ -29,14 +29,10 @@ class GNN_Model(Model):
 
 
 if __name__ == '__main__':
-    file = open('../incremental/cifar10_log/cifar10.pkl', 'rb')
-    record = pickle.load(file)
-    file.close()
+    npz_path = 'LearningCurveDataset'
 
-    train_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=0,
-                                         end=1000, inputs_shape=(None, 32, 32, 3), num_classes=10)
-    valid_dataset = LearningCurveDataset(record_dic=record, record_dir='../incremental/cifar10_log/', start=1001,
-                                         end=2000, inputs_shape=(None, 32, 32, 3), num_classes=10)
+    train_dataset = LearningCurveDataset(npz_path=npz_path, start=0, end=1000)
+    valid_dataset = LearningCurveDataset(npz_path=npz_path, start=1001, end=2000)
 
     #transform1 = RemoveParAndFlopTransform()
     #train_dataset.apply(transform1)
