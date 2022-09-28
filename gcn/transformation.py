@@ -26,7 +26,7 @@ class OneHotToIndexTransform:
         return graph
 
 
-class NormalizeParAndFlopTransform:
+class NormalizeParAndFlop:
     def __call__(self, graph):
         if graph.x is not None:
             flops = graph.x[:, 7] - 28819043.233719405
@@ -40,7 +40,7 @@ class NormalizeParAndFlopTransform:
         return graph
 
 
-class NormalizeParAndFlopTransform_NasBench101:
+class NormalizeParAndFlop_NasBench101:
     def __call__(self, graph):
         if graph.x is not None:
             flops = graph.x[:, 7] - 28108567.14472483
@@ -62,6 +62,18 @@ class SelectLabelQueryIdx_NasBench101:
         if graph.y is not None:
             new_y = np.array([graph.y[self.idx][i] for i in range(graph.y.shape[1])])
             graph.y = new_y
+
+        return graph
+
+
+class SelectNoneNanData_NasBench101:
+    def __call__(self, graph):
+        if graph.y is not None:
+            for idx in range(graph.y.shape[0]):
+                if graph.y[idx][0] != np.nan:
+                    new_y = np.array([graph.y[idx][i] for i in range(graph.y.shape[1])])
+                    graph.y = new_y
+                    break
 
         return graph
 
@@ -113,4 +125,11 @@ class Normalize_x_10to15_NasBench101:
             flops = graph.x[:, 15] / 256
             graph.x[:, 15] = flops
 
+        return graph
+
+
+class NormalizeEdgeFeature_NasBench101:
+    def __call__(self, graph):
+        if graph.e is not None:
+            graph.e /= 512
         return graph

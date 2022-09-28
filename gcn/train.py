@@ -40,7 +40,7 @@ if __name__ == '__main__':
     #train_dataset.apply(transform2)
     #valid_dataset.apply(transform2)
 
-    transform3 = NormalizeParAndFlopTransform()
+    transform3 = NormalizeParAndFlop()
     train_dataset.apply(transform3)
     valid_dataset.apply(transform3)
 
