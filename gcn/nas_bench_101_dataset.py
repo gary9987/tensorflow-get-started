@@ -316,7 +316,7 @@ def get_model_by_id_and_layer_original(cell_filename, shuffle_seed: int, inputs_
 
 
 class NasBench101Dataset(Dataset):
-    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, **kwargs):
+    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, preprocessed=False, **kwargs):
         """
         :param start: The start index of data you want to query.
         :param end: The end index of data you want to query.
@@ -324,6 +324,7 @@ class NasBench101Dataset(Dataset):
         :param shuffle_seed: 0
         :param inputs_shape: (None, 32, 32, 3)
         :param num_classes: Number of the classes of the dataset
+        :param preprocessed: Use the preprocessed dataset
 
         Direct use the dataset with set the start and end parameters,
         or if you want to preprocess again, unmark the marked download() function and set the all parameters.
@@ -339,7 +340,11 @@ class NasBench101Dataset(Dataset):
         self.num_classes = num_classes
         self.start = start
         self.end = end
-        self.file_path = 'NasBench101Dataset'
+        self.preprocessed = preprocessed
+        if preprocessed:
+            self.file_path = 'Preprocessed_NasBench101Dataset'
+        else:
+            self.file_path = 'NasBench101Dataset'
         self.shuffle_seed = shuffle_seed
         self.cell_filename = './nas-bench-101-data/nasbench_101_cell_list.pkl'
         self.total_layers = 11
@@ -354,7 +359,10 @@ class NasBench101Dataset(Dataset):
     def download(self):
         if not os.path.exists(self.file_path):
             print('Downloading...')
-            file_name = wget.download('https://www.dropbox.com/s/40lrvb3lcgij5c8/NasBench101Dataset.zip?dl=1')
+            if self.preprocessed:
+                file_name = wget.download('https://www.dropbox.com/s/muetcgm9l1e01mc/Preprocessed_NasBench101Dataset.zip?dl=1')
+            else:
+                file_name = wget.download('https://www.dropbox.com/s/40lrvb3lcgij5c8/NasBench101Dataset.zip?dl=1')
             print('Save dataset to {}'.format(file_name))
             os.system('unzip {}'.format(file_name))
             print(f'Unzip dataset finish.')
@@ -596,9 +604,15 @@ class NasBench101Dataset(Dataset):
         output = []
         for i in range(self.start, self.end + 1):
             data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+
+            if self.preprocessed:
+                if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
+                    continue
+
             output.append(
                 Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
             )
+
         return output
 
 
@@ -606,6 +620,8 @@ if __name__ == '__main__':
     file = open('./nas-bench-101-data/nasbench_101_cell_list.pkl', 'rb')
     record = pickle.load(file)
     file.close()
+
+    print(len(record))
 
     #dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
     #                             end=len(record), inputs_shape=(None, 32, 32, 3), num_classes=10)

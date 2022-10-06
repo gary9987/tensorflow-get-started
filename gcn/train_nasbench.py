@@ -47,9 +47,11 @@ if __name__ == '__main__':
     model_activation = 'relu'
     model_dropout = 0.2
     batch_size = 64
+    weight_alpha = 5.
+    lr = 0.0005
 
-    train_dataset = NasBench101Dataset(start=0, end=120000)
-    valid_dataset = NasBench101Dataset(start=120001, end=160000)  # 80000 80250
+    train_dataset = NasBench101Dataset(start=0, end=120000, preprocessed=True)
+    valid_dataset = NasBench101Dataset(start=120001, end=160000, preprocessed=True)  # 80000 80250
     #train_dataset = NasBench101Dataset(start=0, end=100)
     #valid_dataset = NasBench101Dataset(start=0, end=100)  # 80000 80250
 
@@ -58,9 +60,6 @@ if __name__ == '__main__':
 
     train_dataset.apply(RemoveTrainingTime_NasBench101())
     valid_dataset.apply(RemoveTrainingTime_NasBench101())
-
-    train_dataset.apply(SelectNoneNanData_NasBench101())
-    valid_dataset.apply(SelectNoneNanData_NasBench101())
 
     train_dataset.apply(Normalize_x_10to15_NasBench101())
     valid_dataset.apply(Normalize_x_10to15_NasBench101())
@@ -74,11 +73,15 @@ if __name__ == '__main__':
     train_dataset.apply(NormalizeEdgeFeature_NasBench101())
     valid_dataset.apply(NormalizeEdgeFeature_NasBench101())
 
+    train_dataset.apply(SelectNoneNanData_NasBench101())
+    valid_dataset.apply(SelectNoneNanData_NasBench101())
+
     print(train_dataset[0], valid_dataset)
 
     model = GNN_Model(n_hidden=model_hidden, activation=model_activation, dropout=model_dropout)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
-    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=1))
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    #model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
+    model.compile('adam', loss='mean_squared_error')
 
     train_loader = BatchLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
