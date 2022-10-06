@@ -12,34 +12,46 @@ import tensorflow.keras.backend as K
 
 class GNN_Model(Model):
 
-    def __init__(self, n_hidden):
-        super().__init__()
-        self.graph_conv = ECCConv(n_hidden, activation='relu')
+    def __init__(self, n_hidden, activation: str, dropout=0.):
+        super(GNN_Model, self).__init__()
+        self.graph_conv = ECCConv(n_hidden, activation=activation)
         self.bn = tensorflow.keras.layers.BatchNormalization()
-        self.pool = GlobalSumPool()
+        self.pool = GlobalMaxPool()
+        self.dropout = tensorflow.keras.layers.Dropout(dropout)
         self.dense = Dense(3)  # train_acc, valid_acc, test_acc
 
     def call(self, inputs):
         out = self.graph_conv(inputs)
         out = self.bn(out)
         out = self.pool(out)
-        #out = self.dropout(out)
+        out = self.dropout(out)
         out = self.dense(out)
-
         return out
 
 
-def weighted_mse(y_true, y_pred):
-    scale_mse_loss = K.switch((y_true < 80.0), 10 * tf.square(y_true - y_pred), tf.square(y_true - y_pred))
-    return tf.reduce_mean(scale_mse_loss, axis=-1)
+def get_weighted_mse_loss_func(mid_point, alpha):
+
+    def weighted_mse(y_true, y_pred):
+        scale_mse_loss = K.switch((y_true < mid_point), alpha * tf.square(y_true - y_pred), tf.square(y_true - y_pred))
+        return tf.reduce_mean(scale_mse_loss, axis=-1)
+
+    return weighted_mse
 
 
 if __name__ == '__main__':
 
     logging.basicConfig(filename='train.log', level=logging.INFO, force=True)
 
-    train_dataset = NasBench101Dataset(start=0, end=80000)
-    valid_dataset = NasBench101Dataset(start=80001, end=160000)  # 80000 80250
+    train_epochs = 100
+    model_hidden = 256
+    model_activation = 'relu'
+    model_dropout = 0.2
+    batch_size = 64
+
+    train_dataset = NasBench101Dataset(start=0, end=120000)
+    valid_dataset = NasBench101Dataset(start=120001, end=160000)  # 80000 80250
+    #train_dataset = NasBench101Dataset(start=0, end=100)
+    #valid_dataset = NasBench101Dataset(start=0, end=100)  # 80000 80250
 
     train_dataset.apply(NormalizeParAndFlop_NasBench101())
     valid_dataset.apply(NormalizeParAndFlop_NasBench101())
@@ -64,14 +76,14 @@ if __name__ == '__main__':
 
     print(train_dataset[0], valid_dataset)
 
-    model = GNN_Model(n_hidden=128)
-    #model.compile('adam', 'mean_squared_error', metrics=['mse'])
-    model.compile('adam', loss=weighted_mse)
+    model = GNN_Model(n_hidden=model_hidden, activation=model_activation, dropout=model_dropout)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=1))
 
-    batch_size = 128
     train_loader = BatchLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=100)
+    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=train_epochs)
+    model.save('a5_m256_relu_maxpool_b64_lr0005')
 
     valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
     loss = model.evaluate(valid_loader.load(), steps=valid_loader.steps_per_epoch)
@@ -80,9 +92,15 @@ if __name__ == '__main__':
     # Test loss: [0.00380403408780694, 0.00380403408780694]
 
     valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-
     for data in valid_loader:
         pred = model.predict(data[0])
         for i, j in zip(data[1], pred):
-            print(i, j)
             logging.info(f'{i} {j}')
+
+    valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
+    logging.info('******************************************************************************')
+    for data in valid_loader:
+        pred = model.predict(data[0])
+        for i, j in zip(data[1], pred):
+            if i[0] <= 80:
+                logging.info(f'{i} {j}')
