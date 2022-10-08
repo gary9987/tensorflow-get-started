@@ -43,12 +43,12 @@ if __name__ == '__main__':
     logging.basicConfig(filename='train.log', level=logging.INFO, force=True)
 
     train_epochs = 100
-    model_hidden = 256
+    model_hidden = 196
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 64
-    weight_alpha = 5.
-    lr = 0.0005
+    batch_size = 128
+    weight_alpha = 10
+    lr = 1e-3
 
     train_dataset = NasBench101Dataset(start=0, end=120000, preprocessed=True)
     valid_dataset = NasBench101Dataset(start=120001, end=160000, preprocessed=True)  # 80000 80250
@@ -80,8 +80,7 @@ if __name__ == '__main__':
 
     model = GNN_Model(n_hidden=model_hidden, activation=model_activation, dropout=model_dropout)
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-    #model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
-    model.compile('adam', loss='mean_squared_error')
+    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
 
     train_loader = BatchLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
