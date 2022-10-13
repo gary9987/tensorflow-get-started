@@ -316,7 +316,7 @@ def get_model_by_id_and_layer_original(cell_filename, shuffle_seed: int, inputs_
 
 
 class NasBench101Dataset(Dataset):
-    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, preprocessed=False, **kwargs):
+    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, preprocessed=False, repeat=1, **kwargs):
         """
         :param start: The start index of data you want to query.
         :param end: The end index of data you want to query.
@@ -349,6 +349,7 @@ class NasBench101Dataset(Dataset):
         self.cell_filename = './nas-bench-101-data/nasbench_101_cell_list.pkl'
         self.total_layers = 11
         self.record_dic = record_dic
+        self.repeat = repeat
 
         if self.record_dic is not None:
             random.seed(shuffle_seed)
@@ -609,9 +610,15 @@ class NasBench101Dataset(Dataset):
                 if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
                     continue
 
-            output.append(
-                Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
-            )
+            if self.repeat > 1 and data['y'][0][0] < 0.8:
+                for r in range(self.repeat):
+                    output.append(
+                        Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
+                    )
+            else:
+                output.append(
+                    Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
+                )
 
         return output
 

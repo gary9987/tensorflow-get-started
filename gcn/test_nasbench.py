@@ -1,3 +1,4 @@
+import keras.models
 import tensorflow.keras.layers
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout
@@ -39,53 +40,31 @@ def get_weighted_mse_loss_func(mid_point, alpha):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='train.log', level=logging.INFO, force=True)
+    logging.basicConfig(filename='test.log', level=logging.INFO, force=True)
 
-    train_epochs = 100
-    model_hidden = 256
-    model_activation = 'relu'
-    model_dropout = 0.2
     batch_size = 64
     weight_alpha = 1
-    repeat = 436
-    lr = 1e-3
 
-    train_dataset = NasBench101Dataset(start=0, end=120000, preprocessed=True, repeat=repeat)
-    valid_dataset = NasBench101Dataset(start=120001, end=160000, preprocessed=True)  # 80000 80250
-    #train_dataset = NasBench101Dataset(start=0, end=100)
-    #valid_dataset = NasBench101Dataset(start=0, end=100)  # 80000 80250
-
-    train_dataset.apply(NormalizeParAndFlop_NasBench101())
-    valid_dataset.apply(NormalizeParAndFlop_NasBench101())
-
-    train_dataset.apply(RemoveTrainingTime_NasBench101())
-    valid_dataset.apply(RemoveTrainingTime_NasBench101())
-
-    train_dataset.apply(Normalize_x_10to15_NasBench101())
-    valid_dataset.apply(Normalize_x_10to15_NasBench101())
-
-    train_dataset.apply(NormalizeLayer_NasBench101())
-    valid_dataset.apply(NormalizeLayer_NasBench101())
-
-    train_dataset.apply(LabelScale_NasBench101())
-    valid_dataset.apply(LabelScale_NasBench101())
-
-    train_dataset.apply(NormalizeEdgeFeature_NasBench101())
-    valid_dataset.apply(NormalizeEdgeFeature_NasBench101())
-
-    train_dataset.apply(SelectNoneNanData_NasBench101())
-    valid_dataset.apply(SelectNoneNanData_NasBench101())
-
-    print(train_dataset, valid_dataset)
-
-    model = GNN_Model(n_hidden=model_hidden, activation=model_activation, dropout=model_dropout)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    model = keras.models.load_model('a5_m256_relu_maxpool_b64_lr0005', custom_objects={'weighted_mse': get_weighted_mse_loss_func(80, weight_alpha)})
     model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
 
-    train_loader = BatchLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    valid_dataset = NasBench101Dataset(start=120001, end=160000, preprocessed=True)  # 80000 80250
 
-    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=train_epochs)
-    model.save('weights')
+    valid_dataset.apply(NormalizeParAndFlop_NasBench101())
+
+    valid_dataset.apply(RemoveTrainingTime_NasBench101())
+
+    valid_dataset.apply(Normalize_x_10to15_NasBench101())
+
+    valid_dataset.apply(NormalizeLayer_NasBench101())
+
+    valid_dataset.apply(LabelScale_NasBench101())
+
+    valid_dataset.apply(NormalizeEdgeFeature_NasBench101())
+
+    valid_dataset.apply(SelectNoneNanData_NasBench101())
+
+    print(valid_dataset)
 
     valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
     loss = model.evaluate(valid_loader.load(), steps=valid_loader.steps_per_epoch)
