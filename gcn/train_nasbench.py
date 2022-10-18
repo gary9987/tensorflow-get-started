@@ -1,7 +1,7 @@
 import tensorflow.keras.layers
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout
-from spektral.layers import ECCConv, GlobalSumPool, GlobalMaxPool, GlobalAvgPool
+from spektral.layers import ECCConv, GINConvBatch, GlobalSumPool, GlobalMaxPool, GlobalAvgPool
 from spektral.data import BatchLoader
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
@@ -14,7 +14,8 @@ class GNN_Model(Model):
 
     def __init__(self, n_hidden, activation: str, dropout=0.):
         super(GNN_Model, self).__init__()
-        self.graph_conv = ECCConv(n_hidden, activation=activation)
+        #self.graph_conv = ECCConv(n_hidden, activation=activation)
+        self.graph_conv = GINConvBatch(n_hidden, activation=activation)
         self.bn = tensorflow.keras.layers.BatchNormalization()
         self.pool = GlobalMaxPool()
         self.dropout = tensorflow.keras.layers.Dropout(dropout)
@@ -73,6 +74,9 @@ if __name__ == '__main__':
     train_dataset.apply(NormalizeEdgeFeature_NasBench101())
     valid_dataset.apply(NormalizeEdgeFeature_NasBench101())
 
+    train_dataset.apply(RemoveEdgeFeature_NasBench101())
+    valid_dataset.apply(RemoveEdgeFeature_NasBench101())
+
     train_dataset.apply(SelectNoneNanData_NasBench101())
     valid_dataset.apply(SelectNoneNanData_NasBench101())
 
@@ -85,6 +89,7 @@ if __name__ == '__main__':
     train_loader = BatchLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=train_epochs)
+    print(model.summary())
     model.save('weights')
 
     valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)

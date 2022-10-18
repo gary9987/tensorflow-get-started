@@ -1,5 +1,5 @@
 import numpy as np
-
+from spektral.data import Graph
 
 class RemoveParAndFlopTransform:
     def __call__(self, graph):
@@ -133,3 +133,9 @@ class NormalizeEdgeFeature_NasBench101:
         if graph.e is not None:
             graph.e /= 512
         return graph
+
+
+class RemoveEdgeFeature_NasBench101:
+    def __call__(self, graph):
+        ret = Graph(x=graph.x, a=graph.a, y=graph.y)
+        return ret
