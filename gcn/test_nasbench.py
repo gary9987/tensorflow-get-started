@@ -45,7 +45,7 @@ if __name__ == '__main__':
     batch_size = 64
     weight_alpha = 1
 
-    model = keras.models.load_model('a5_m256_relu_maxpool_b64_lr0005', custom_objects={'weighted_mse': get_weighted_mse_loss_func(80, weight_alpha)})
+    model = keras.models.load_model('weights', custom_objects={'weighted_mse': get_weighted_mse_loss_func(80, weight_alpha)})
     model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
 
     valid_dataset = NasBench101Dataset(start=120001, end=160000, preprocessed=True)  # 80000 80250
