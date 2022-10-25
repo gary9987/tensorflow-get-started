@@ -5,6 +5,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Dropout
 from spektral.layers import ECCConv, GINConvBatch, GATConv, GlobalSumPool, GlobalMaxPool, GlobalAvgPool, DiffPool
 from spektral.data import BatchLoader
+from tensorflow.python.keras.callbacks import CSVLogger
+
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
@@ -78,7 +80,7 @@ if __name__ == '__main__':
     lr = 1e-3
     mlp_hidden = [256, 256, 256, 256]
     is_filtered = True
-    patience = 10
+    patience = 20
 
     model = GNN_Model(n_hidden=model_hidden, mlp_hidden=mlp_hidden, activation=model_activation, dropout=model_dropout)
 
@@ -93,8 +95,8 @@ if __name__ == '__main__':
 
     datasets = {
         'train': NasBench101Dataset(start=0, end=120000, preprocessed=is_filtered, repeat=repeat),
-        'valid': NasBench101Dataset(start=120001, end=140000, preprocessed=is_filtered),
-        'test': NasBench101Dataset(start=140001, end=160000, preprocessed=is_filtered),
+        'valid': NasBench101Dataset(start=120001, end=145000, preprocessed=is_filtered),
+        'test': NasBench101Dataset(start=145001, end=169594, preprocessed=is_filtered),
     }
 
     for key in datasets:
@@ -114,10 +116,11 @@ if __name__ == '__main__':
     train_loader = BatchLoader(datasets['train'], batch_size=batch_size, shuffle=True)
     valid_loader = BatchLoader(datasets['valid'], batch_size=batch_size, shuffle=False)
 
-    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch,
-              validation_data=valid_loader.load(), validation_steps=valid_loader.steps_per_epoch,
-              epochs=train_epochs,
-              callbacks=[EarlyStopping(patience=patience, restore_best_weights=True)])
+    history = model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch,
+                        validation_data=valid_loader.load(), validation_steps=valid_loader.steps_per_epoch,
+                        epochs=train_epochs,
+                        callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
+                                   CSVLogger(f"{weight_filename}_history.log")])
 
     logging.info(model.summary())
 
