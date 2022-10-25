@@ -69,11 +69,14 @@ class SelectLabelQueryIdx_NasBench101:
 class SelectNoneNanData_NasBench101:
     def __call__(self, graph):
         if graph.y is not None:
+            new_y = np.array([0 for _ in range(graph.y.shape[1])])
             for idx in range(graph.y.shape[0]):
                 if not np.isnan(graph.y[idx][0]):
-                    new_y = np.array([graph.y[idx][i] for i in range(graph.y.shape[1])])
-                    graph.y = new_y
-                    break
+                    # Select the highest test acc
+                    if graph.y[idx][2] > new_y[2]:
+                        new_y = np.array([graph.y[idx][i] for i in range(graph.y.shape[1])])
+
+            graph.y = new_y
 
         return graph
 
