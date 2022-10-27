@@ -78,7 +78,7 @@ if __name__ == '__main__':
     weight_alpha = 436
     repeat = 1
     lr = 1e-3
-    mlp_hidden = [256, 256, 256, 256]
+    mlp_hidden = [128, 128, 256, 256]
     is_filtered = True
     patience = 20
 
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     datasets = {
         'train': NasBench101Dataset(start=0, end=120000, preprocessed=is_filtered, repeat=repeat),
         'valid': NasBench101Dataset(start=120001, end=145000, preprocessed=is_filtered),
-        'test': NasBench101Dataset(start=145001, end=169594, preprocessed=is_filtered),
+        'test': NasBench101Dataset(start=145001, end=169593, preprocessed=is_filtered),
     }
 
     for key in datasets:
@@ -122,7 +122,7 @@ if __name__ == '__main__':
                         callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
                                    CSVLogger(f"{weight_filename}_history.log")])
 
-    logging.info(model.summary())
+    logging.info(f'{model.summary()}')
 
     logging.info(f'Model will save to {weight_filename}')
     model.save(weight_filename)

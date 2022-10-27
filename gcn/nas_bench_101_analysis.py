@@ -3,19 +3,19 @@ import os
 
 if __name__ == '__main__':
 
-    #file_path = 'Preprocessed_NasBench101Dataset'
-    file_path = 'NasBench101Dataset'
+    file_path = 'Preprocessed_NasBench101Dataset'
+    #file_path = 'NasBench101Dataset'
 
     out = [np.zeros((1, 3))] * 3
 
     more_than_80 = 0
     under80 = 0
 
-    for no in range(0, 169594):  #169594):
+    for no in range(0, 120000):  #169594):
         data = np.load(os.path.join(file_path, f'graph_{no}.npz'))
         y = data['y']
 
-        for idx in range(y.shape[0]):
+        for idx in range(2, 3):
             if not np.isnan(y[idx][0]):
                 if y[idx][0] < 0.8:
                     under80 += 1
@@ -24,8 +24,16 @@ if __name__ == '__main__':
                 break
 
     print(more_than_80, under80)
-    # Filtered 169042 387
-    # Non-filtered 168403 1191
+    # All Filtered        169042 387
+    # train 0~120000      119095 254
+    # valid 120001~145000: 24814, 51
+    # test  145001~169594: 24395, 67
+
+    # All Non-filtered    168403 1191
+    # train 0~120000      119150  850
+    # valid 120001~145000: 24826, 173
+    # test  145001~169594: 24410, 183
+
 
 
     '''
