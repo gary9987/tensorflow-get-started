@@ -1,5 +1,5 @@
 import os.path
-
+from sklearn.metrics import f1_score, recall_score, balanced_accuracy_score, accuracy_score
 import keras.models
 import numpy as np
 from spektral.data import BatchLoader
@@ -9,9 +9,8 @@ import logging
 from train_nasbench import get_weighted_mse_loss_func
 import tensorflow as tf
 
-if __name__ == '__main__':
 
-    weight_path = 'gin_conv_batch_filterTrue_a1_r436_m256_b64_dropout0.2_lr0.001_mlp64, 64, 64, 64'
+def test_method(weight_path):
     log_path = f'{weight_path}_test.log'
     if os.path.exists(log_path):
         os.remove(log_path)
@@ -32,13 +31,14 @@ if __name__ == '__main__':
     test_dataset.apply(NormalizeLayer_NasBench101())
     test_dataset.apply(LabelScale_NasBench101())
     test_dataset.apply(NormalizeEdgeFeature_NasBench101())
-    test_dataset.apply(RemoveEdgeFeature_NasBench101())
+    if 'ecc_con' not in weight_path:
+        test_dataset.apply(RemoveEdgeFeature_NasBench101())
     test_dataset.apply(SelectNoneNanData_NasBench101())
 
-    #test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-    #loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
-    #print('Test loss: {}'.format(loss))
-    #logging.info('Test loss: {}'.format(loss))
+    # test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
+    # loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
+    # print('Test loss: {}'.format(loss))
+    # logging.info('Test loss: {}'.format(loss))
     # Test loss: [0.00380403408780694, 0.00380403408780694]
 
     delta = [0] * 11
@@ -65,7 +65,13 @@ if __name__ == '__main__':
     for i, j in enumerate(delta):
         logging.info(f'Diff range {i * 10}~{i * 10 + 9}: {j}')
 
-    logging.info(f'{tf.math.confusion_matrix(label_array, pred_array)}')
+    logging.info(f'Confuse matrix: \n{tf.math.confusion_matrix(label_array, pred_array)}')
+    logging.info(f'F1-Score: \n{f1_score(label_array, pred_array)}')
+    logging.info(f'Recall(Sensitivity)-Score: \n{recall_score(label_array, pred_array)}')
+    logging.info(f'Specificity-Score: \n{recall_score(label_array, pred_array, pos_label=0)}')
+    logging.info(f'Accuracy: \n{accuracy_score(label_array, pred_array)}')
+    logging.info(f'Balanced-Accuracy: \n{balanced_accuracy_score(label_array, pred_array)}')
+
     '''
     test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
     logging.info('******************************************************************************')
@@ -75,3 +81,19 @@ if __name__ == '__main__':
             if i[0] <= 80:
                 logging.info(f'{i} {j}')
     '''
+
+
+def is_weight_dir(filename):
+    check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
+    for i in check_list:
+        if i in filename:
+            return True
+
+    return False
+
+
+if __name__ == '__main__':
+    for filename in os.listdir():
+        if os.path.isdir(filename) and is_weight_dir(filename):
+            print(f'Now test {filename}')
+            test_method(filename)
