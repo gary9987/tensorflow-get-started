@@ -6,7 +6,7 @@ from spektral.data import BatchLoader
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
-from train_nasbench import get_weighted_mse_loss_func
+from nasbench_model import get_weighted_mse_loss_func
 
 
 def test_method(weight_path):
@@ -83,17 +83,6 @@ def test_method(weight_path):
     logging.info(f'Accuracy: \n{accuracy_score(label_array, pred_array)}')
     logging.info(f'Balanced-Accuracy: \n{balanced_accuracy_score(label_array, pred_array)}')
 
-    '''
-    test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-    logging.info('******************************************************************************')
-    for data in test_loader:
-        pred = model.predict(data[0])
-        for i, j in zip(data[1], pred):
-            if i[0] <= 80:
-                logging.info(f'{i} {j}')
-    '''
-
-
 def is_weight_dir(filename):
     check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
     for i in check_list:
@@ -104,7 +93,10 @@ def is_weight_dir(filename):
 
 
 if __name__ == '__main__':
+    '''
     for filename in os.listdir():
         if os.path.isdir(filename) and is_weight_dir(filename):
             print(f'Now test {filename}')
             test_method(filename)
+    '''
+    test_method('gin_conv_batch_filterTrue_a20_r20_m256_b128_dropout0.2_lr0.001_mlp64, 64, 64, 64')

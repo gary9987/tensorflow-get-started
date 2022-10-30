@@ -1,72 +1,13 @@
 import sys
-
-import tensorflow.keras.layers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Dropout
-from spektral.layers import ECCConv, GINConvBatch, GATConv, GlobalSumPool, GlobalMaxPool, GlobalAvgPool, DiffPool
 from spektral.data import BatchLoader
 from tensorflow.python.keras.callbacks import CSVLogger
-
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
 import tensorflow as tf
-import tensorflow.keras.backend as K
 from tensorflow.keras.callbacks import EarlyStopping
-
-'''
-_________________________________________________________________
- Layer (type)                Output Shape              Param #   
-=================================================================
- ecc_conv (ECCConv)          multiple                  12544     
-                                                                 
- batch_normalization (BatchN  multiple                 1024      
- ormalization)                                                   
-                                                                 
- global_max_pool (GlobalMaxP  multiple                 0         
- ool)                                                            
-                                                                 
- dropout (Dropout)           multiple                  0         
-                                                                 
- dense (Dense)               multiple                  771       
-                                                                 
-=================================================================
-Total params: 14,339
-Trainable params: 13,827
-Non-trainable params: 512
-_________________________________________________________________
-'''
-
-
-class GNN_Model(Model):
-
-    def __init__(self, n_hidden, mlp_hidden, activation: str, dropout=0.):
-        super(GNN_Model, self).__init__()
-        self.graph_conv = ECCConv(n_hidden, activation=activation)
-        #self.graph_conv = GINConvBatch(n_hidden, mlp_hidden=mlp_hidden, mlp_activation=activation, mlp_batchnorm=True,
-        #                               activation=activation)
-        # self.graph_conv = GATConv(n_hidden, attn_heads=1, activation=activation)
-        self.bn = tensorflow.keras.layers.BatchNormalization()
-        self.pool = GlobalMaxPool()
-        self.dropout = tensorflow.keras.layers.Dropout(dropout)
-        self.dense = Dense(3)  # train_acc, valid_acc, test_acc
-
-    def call(self, inputs):
-        out = self.graph_conv(inputs)
-        out = self.bn(out)
-        out = self.pool(out)
-        out = self.dropout(out)
-        out = self.dense(out)
-        return out
-
-
-def get_weighted_mse_loss_func(mid_point, alpha):
-    def weighted_mse(y_true, y_pred):
-        scale_mse_loss = K.switch((y_true < mid_point), alpha * tf.square(y_true - y_pred), tf.square(y_true - y_pred))
-        return tf.reduce_mean(scale_mse_loss, axis=-1)
-
-    return weighted_mse
-
+from nasbench_model import GNN_Model, get_weighted_mse_loss_func
+from test_nasbench import test_method
 
 if __name__ == '__main__':
 
@@ -74,19 +15,19 @@ if __name__ == '__main__':
     model_hidden = 256
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 64
-    weight_alpha = 1
-    repeat = 1
+    batch_size = 128
+    weight_alpha = 20
+    repeat = 10
     lr = 1e-3
-    #mlp_hidden = [64, 64, 64, 64]
-    mlp_hidden = None
+    mlp_hidden = [64, 64, 64, 64]
+    #mlp_hidden = None
     is_filtered = True
     patience = 20
 
     model = GNN_Model(n_hidden=model_hidden, mlp_hidden=mlp_hidden, activation=model_activation, dropout=model_dropout)
 
     # Set logger
-    weight_filename = model.graph_conv.name + f'_filter{is_filtered}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{mlp_hidden}'
+    weight_filename = model.graph_conv.name + f'_filter{is_filtered}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{tuple(mlp_hidden)}'
     logging.basicConfig(filename=f'{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
@@ -147,3 +88,5 @@ if __name__ == '__main__':
         for i, j in zip(data[1], pred):
             if i[0] <= 80:
                 logging.info(f'{i} {j}')
+
+    test_method(weight_filename)
