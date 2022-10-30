@@ -42,9 +42,9 @@ class GNN_Model(Model):
 
     def __init__(self, n_hidden, mlp_hidden, activation: str, dropout=0.):
         super(GNN_Model, self).__init__()
-        # self.graph_conv = ECCConv(n_hidden, activation=activation)
-        self.graph_conv = GINConvBatch(n_hidden, mlp_hidden=mlp_hidden, mlp_activation=activation, mlp_batchnorm=True,
-                                       activation=activation)
+        self.graph_conv = ECCConv(n_hidden, activation=activation)
+        #self.graph_conv = GINConvBatch(n_hidden, mlp_hidden=mlp_hidden, mlp_activation=activation, mlp_batchnorm=True,
+        #                               activation=activation)
         # self.graph_conv = GATConv(n_hidden, attn_heads=1, activation=activation)
         self.bn = tensorflow.keras.layers.BatchNormalization()
         self.pool = GlobalMaxPool()
@@ -74,11 +74,12 @@ if __name__ == '__main__':
     model_hidden = 256
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 128
-    weight_alpha = 436
+    batch_size = 64
+    weight_alpha = 1
     repeat = 1
     lr = 1e-3
-    mlp_hidden = [128, 128, 256, 256]
+    #mlp_hidden = [64, 64, 64, 64]
+    mlp_hidden = None
     is_filtered = True
     patience = 20
 
@@ -106,7 +107,8 @@ if __name__ == '__main__':
         datasets[key].apply(NormalizeLayer_NasBench101())
         datasets[key].apply(LabelScale_NasBench101())
         datasets[key].apply(NormalizeEdgeFeature_NasBench101())
-        datasets[key].apply(RemoveEdgeFeature_NasBench101())
+        if 'ecc_con' not in weight_filename:
+            datasets[key].apply(RemoveEdgeFeature_NasBench101())
         datasets[key].apply(SelectNoneNanData_NasBench101())
         logging.info(f'{datasets[key]}')
 
