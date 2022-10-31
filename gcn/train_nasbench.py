@@ -10,8 +10,7 @@ from nasbench_model import GNN_Model, get_weighted_mse_loss_func
 from test_nasbench import test_method
 
 
-if __name__ == '__main__':
-
+def train(mid_point):
     train_epochs = 100
     model_hidden = 256
     model_activation = 'relu'
@@ -20,7 +19,7 @@ if __name__ == '__main__':
     weight_alpha = 5
     repeat = 80
     lr = 1e-3
-    mid_point = 50
+    mid_point = mid_point
     mlp_hidden = [64, 64, 64, 64]
     #mlp_hidden = None
     is_filtered = True
@@ -34,7 +33,7 @@ if __name__ == '__main__':
     else:
         weight_filename = model.graph_conv.name + f'_filter{is_filtered}_mp{mid_point}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{mlp_hidden}'
 
-    logging.basicConfig(filename=f'{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
+    logging.basicConfig(filename=f'valid_log/{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -70,7 +69,7 @@ if __name__ == '__main__':
                         validation_data=valid_loader.load(), validation_steps=valid_loader.steps_per_epoch,
                         epochs=train_epochs,
                         callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
-                                   CSVLogger(f"{weight_filename}_history.log")])
+                                   CSVLogger(f"learning_curve/{weight_filename}_history.log")])
 
     logging.info(f'{model.summary()}')
 
@@ -97,3 +96,8 @@ if __name__ == '__main__':
                 logging.info(f'{i} {j}')
 
     test_method(weight_filename, mid_point)
+
+
+if __name__ == '__main__':
+    for i in range(10, 91, 10):
+        train(mid_point=i)

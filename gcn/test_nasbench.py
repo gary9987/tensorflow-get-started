@@ -10,7 +10,7 @@ from nasbench_model import get_weighted_mse_loss_func
 
 
 def test_method(weight_path, mid_point):
-    log_path = f'{weight_path}_test.log'
+    log_path = f'test_result/{weight_path}_test.log'
     if os.path.exists(log_path):
         os.remove(log_path)
 
