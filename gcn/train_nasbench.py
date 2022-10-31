@@ -9,6 +9,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from nasbench_model import GNN_Model, get_weighted_mse_loss_func
 from test_nasbench import test_method
 
+
 if __name__ == '__main__':
 
     train_epochs = 100
@@ -16,9 +17,10 @@ if __name__ == '__main__':
     model_activation = 'relu'
     model_dropout = 0.2
     batch_size = 128
-    weight_alpha = 20
-    repeat = 10
+    weight_alpha = 5
+    repeat = 80
     lr = 1e-3
+    mid_point = 50
     mlp_hidden = [64, 64, 64, 64]
     #mlp_hidden = None
     is_filtered = True
@@ -27,7 +29,11 @@ if __name__ == '__main__':
     model = GNN_Model(n_hidden=model_hidden, mlp_hidden=mlp_hidden, activation=model_activation, dropout=model_dropout)
 
     # Set logger
-    weight_filename = model.graph_conv.name + f'_filter{is_filtered}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{tuple(mlp_hidden)}'
+    if mlp_hidden is not None:
+        weight_filename = model.graph_conv.name + f'_filter{is_filtered}_mp{mid_point}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{tuple(mlp_hidden)}'
+    else:
+        weight_filename = model.graph_conv.name + f'_filter{is_filtered}_mp{mid_point}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{mlp_hidden}'
+
     logging.basicConfig(filename=f'{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
@@ -36,7 +42,7 @@ if __name__ == '__main__':
     logging.getLogger().addHandler(handler)
 
     datasets = {
-        'train': NasBench101Dataset(start=0, end=120000, preprocessed=is_filtered, repeat=repeat),
+        'train': NasBench101Dataset(start=0, end=120000, preprocessed=is_filtered, repeat=repeat, mid_point=mid_point/100),
         'valid': NasBench101Dataset(start=120001, end=145000, preprocessed=is_filtered),
         'test': NasBench101Dataset(start=145001, end=169593, preprocessed=is_filtered),
     }
@@ -51,10 +57,10 @@ if __name__ == '__main__':
         if 'ecc_con' not in weight_filename:
             datasets[key].apply(RemoveEdgeFeature_NasBench101())
         datasets[key].apply(SelectNoneNanData_NasBench101())
-        logging.info(f'{datasets[key]}')
+        logging.info(f'key {datasets[key]}')
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
+    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=mid_point, alpha=weight_alpha))
 
     train_loader = BatchLoader(datasets['train'], batch_size=batch_size, shuffle=True)
     valid_loader = BatchLoader(datasets['valid'], batch_size=batch_size, shuffle=False)
@@ -86,7 +92,7 @@ if __name__ == '__main__':
     for data in test_loader:
         pred = model.predict(data[0])
         for i, j in zip(data[1], pred):
-            if i[0] <= 80:
+            if i[0] <= mid_point:
                 logging.info(f'{i} {j}')
 
-    test_method(weight_filename)
+    test_method(weight_filename, mid_point)

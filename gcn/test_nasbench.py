@@ -9,7 +9,7 @@ import logging
 from nasbench_model import get_weighted_mse_loss_func
 
 
-def test_method(weight_path):
+def test_method(weight_path, mid_point):
     log_path = f'{weight_path}_test.log'
     if os.path.exists(log_path):
         os.remove(log_path)
@@ -19,28 +19,35 @@ def test_method(weight_path):
     weight_alpha = 1
 
     model = keras.models.load_model(weight_path,
-                                    custom_objects={'weighted_mse': get_weighted_mse_loss_func(80, weight_alpha)})
-    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
+                                    custom_objects={
+                                        'weighted_mse': get_weighted_mse_loss_func(mid_point, weight_alpha)})
+    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=mid_point, alpha=weight_alpha))
 
-    test_dataset = NasBench101Dataset(start=145001, end=169593, preprocessed=True)  # 145001 169593
+    test_datasets = [
+        NasBench101Dataset(start=145001, end=169593, preprocessed=True),
+        NasBench101Dataset(start=145001, end=169593, preprocessed=True, mid_point=mid_point / 100, request_lower=True),
+        NasBench101Dataset(start=145001, end=169593, preprocessed=True, mid_point=mid_point / 100, request_lower=False),
+    ]  # 145001 169593
+    print(test_datasets)
 
-    test_dataset.apply(NormalizeParAndFlop_NasBench101())
-    test_dataset.apply(RemoveTrainingTime_NasBench101())
-    test_dataset.apply(Normalize_x_10to15_NasBench101())
-    test_dataset.apply(NormalizeLayer_NasBench101())
-    test_dataset.apply(LabelScale_NasBench101())
-    test_dataset.apply(NormalizeEdgeFeature_NasBench101())
-    if 'ecc_con' not in weight_path:
-        test_dataset.apply(RemoveEdgeFeature_NasBench101())
-    test_dataset.apply(SelectNoneNanData_NasBench101())
+    for test_dataset in test_datasets:
+        test_dataset.apply(NormalizeParAndFlop_NasBench101())
+        test_dataset.apply(RemoveTrainingTime_NasBench101())
+        test_dataset.apply(Normalize_x_10to15_NasBench101())
+        test_dataset.apply(NormalizeLayer_NasBench101())
+        test_dataset.apply(LabelScale_NasBench101())
+        test_dataset.apply(NormalizeEdgeFeature_NasBench101())
+        if 'ecc_con' not in weight_path:
+            test_dataset.apply(RemoveEdgeFeature_NasBench101())
+        test_dataset.apply(SelectNoneNanData_NasBench101())
 
-    test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
+    test_loader = BatchLoader(test_datasets[0], batch_size=batch_size, shuffle=False, epochs=1)
     loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
     print('Test loss: {}'.format(loss))
     logging.info('Test loss: {}'.format(loss))
     # Test loss: [0.00380403408780694, 0.00380403408780694]
 
-    # delta <= 80%, > 80%
+    # delta <= mid_point%, > mid_point80%
     delta = [{}, {}]
     for i in range(-11, 12):
         delta[0][i] = 0
@@ -49,7 +56,7 @@ def test_method(weight_path):
     label_array = np.array([])
     pred_array = np.array([])
 
-    test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
+    test_loader = BatchLoader(test_datasets[0], batch_size=batch_size, shuffle=False, epochs=1)
     for data in test_loader:
         pred = model.predict(data[0])
         for i, j in zip(data[1], pred):
@@ -57,21 +64,21 @@ def test_method(weight_path):
             valid_label, valid_predict = i[1], j[1]
             diff = valid_predict - valid_label
             try:
-                if valid_label <= 80:
+                if valid_label <= mid_point:
                     delta[0][int(diff / 10)] += 1
                 else:
                     delta[1][int(diff / 10)] += 1
             except:
                 logging.info(f'Data out of range label: {valid_label}, pred: {valid_predict}')
 
-            label_array = np.concatenate((label_array, np.array(1 if valid_label > 80 else 0)), axis=None)
-            pred_array = np.concatenate((pred_array, np.array(1 if valid_predict > 80 else 0)), axis=None)
+            label_array = np.concatenate((label_array, np.array(1 if valid_label > mid_point else 0)), axis=None)
+            pred_array = np.concatenate((pred_array, np.array(1 if valid_predict > mid_point else 0)), axis=None)
 
     for i in range(2):
         if i == 0:
-            logging.info('Below information of diff range is accuracy <= 80%')
+            logging.info(f'Below information of diff range is accuracy <= {mid_point}%')
         else:
-            logging.info('Below information diff range is accuracy > 80%')
+            logging.info(f'Below information diff range is accuracy > {mid_point}%')
         for key in delta[i]:
             logging.info(f'Diff range {key * 10}~{key * 10 + 9}: {delta[i][key]}')
 
@@ -82,6 +89,27 @@ def test_method(weight_path):
     logging.info(f'Specificity-Score: \n{recall_score(label_array, pred_array, pos_label=0)}')
     logging.info(f'Accuracy: \n{accuracy_score(label_array, pred_array)}')
     logging.info(f'Balanced-Accuracy: \n{balanced_accuracy_score(label_array, pred_array)}')
+
+    test_loader = BatchLoader(test_datasets[1], batch_size=batch_size, shuffle=False, epochs=1)
+    loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
+    print('Test MSE loss for lower split: {}'.format(loss))
+    logging.info('Test MSE loss for lower split: {}'.format(loss))
+
+    test_loader = BatchLoader(test_datasets[2], batch_size=batch_size, shuffle=False, epochs=1)
+    loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
+    print('Test MSE loss for upper split: {}'.format(loss))
+    logging.info('Test loss for upper split: {}'.format(loss))
+
+    model.compile('adam', loss='mae')
+    test_loader = BatchLoader(test_datasets[1], batch_size=batch_size, shuffle=False, epochs=1)
+    loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
+    print('Test MAE loss for lower split: {}'.format(loss))
+    logging.info('Test MAE loss for lower split: {}'.format(loss))
+
+    test_loader = BatchLoader(test_datasets[2], batch_size=batch_size, shuffle=False, epochs=1)
+    loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
+    print('Test MAE loss for upper split: {}'.format(loss))
+    logging.info('Test MAE loss for upper split: {}'.format(loss))
 
 def is_weight_dir(filename):
     check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
@@ -99,4 +127,4 @@ if __name__ == '__main__':
             print(f'Now test {filename}')
             test_method(filename)
     '''
-    test_method('gin_conv_batch_filterTrue_a20_r20_m256_b128_dropout0.2_lr0.001_mlp64, 64, 64, 64')
+    test_method('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)

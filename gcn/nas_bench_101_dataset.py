@@ -3,17 +3,11 @@ import random
 from spektral.data import Dataset, Graph
 import pickle
 import numpy as np
-import csv
 from model_spec import ModelSpec
 import tensorflow as tf
-from tensorflow.python.profiler.model_analyzer import profile
-from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
 from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2_as_graph
-import model_util
-from classifier import Classifier
 import os
 import wget
-from keras import backend as K
 from os import path
 import re
 import hashlib
@@ -316,7 +310,8 @@ def get_model_by_id_and_layer_original(cell_filename, shuffle_seed: int, inputs_
 
 
 class NasBench101Dataset(Dataset):
-    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, preprocessed=False, repeat=1, **kwargs):
+    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10,
+                 preprocessed=False, repeat=1, mid_point=None, request_lower=None, **kwargs):
         """
         :param start: The start index of data you want to query.
         :param end: The end index of data you want to query.
@@ -325,6 +320,7 @@ class NasBench101Dataset(Dataset):
         :param inputs_shape: (None, 32, 32, 3)
         :param num_classes: Number of the classes of the dataset
         :param preprocessed: Use the preprocessed dataset
+        :param repeat: if repeat > 1 then mid_point is required to set, this repeat the data which acc lower than midpoint
 
         Direct use the dataset with set the start and end parameters,
         or if you want to preprocess again, unmark the marked download() function and set the all parameters.
@@ -350,6 +346,11 @@ class NasBench101Dataset(Dataset):
         self.total_layers = 11
         self.record_dic = record_dic
         self.repeat = repeat
+        # self.acc_range = acc_range
+        if mid_point is not None and mid_point >= 10:
+            raise Exception("the range of mid_point is < 10")
+        self.mid_point = mid_point
+        self.request_lower = request_lower
 
         if self.record_dic is not None:
             random.seed(shuffle_seed)
@@ -602,23 +603,45 @@ class NasBench101Dataset(Dataset):
     '''
 
     def read(self):
+        if self.repeat > 1 or self.request_lower is not None:
+            if self.mid_point is None:
+                raise Exception("mid_point is not set")
+
         output = []
-        for i in range(self.start, self.end + 1):
-            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
 
-            if self.preprocessed:
-                if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
-                    continue
+        if self.request_lower is not None:
+            for i in range(self.start, self.end + 1):
+                data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
 
-            if self.repeat > 1 and data['y'][0][0] < 0.8:
-                for r in range(self.repeat):
-                    output.append(
-                        Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
-                    )
-            else:
-                output.append(
-                    Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
-                )
+                if self.preprocessed:
+                    if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
+                        continue
+
+                # valid acc < mid_point
+                if self.request_lower:
+                    if data['y'][0][0] <= self.mid_point:
+                        output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+                else:
+                    if data['y'][0][0] > self.mid_point:
+                        output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+
+        else:
+            for i in range(self.start, self.end + 1):
+                data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+
+                if self.preprocessed:
+                    if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
+                        continue
+
+                if self.repeat > 1:
+                    # valid acc < mid_point
+                    if data['y'][0][0] < self.mid_point:
+                        for _ in range(self.repeat):
+                            output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+                    else:
+                        output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+                else:
+                    output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
 
         return output
 
@@ -630,7 +653,7 @@ if __name__ == '__main__':
 
     print(len(record))
 
-    #dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
+    # dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
     #                             end=len(record), inputs_shape=(None, 32, 32, 3), num_classes=10)
 
     # Test read()
