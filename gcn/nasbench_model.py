@@ -52,7 +52,7 @@ _________________________________________________________________
 
 def get_weighted_mse_loss_func(mid_point, alpha):
     def weighted_mse(y_true, y_pred):
-        scale_mse_loss = Keras_backend.switch((y_true < mid_point), alpha * tf.square(y_true - y_pred), tf.square(y_true - y_pred))
+        scale_mse_loss = Keras_backend.switch((y_true <= mid_point), alpha * tf.square(y_true - y_pred), tf.square(y_true - y_pred))
         return tf.reduce_mean(scale_mse_loss, axis=-1)
 
     return weighted_mse

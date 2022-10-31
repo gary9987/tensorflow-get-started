@@ -309,6 +309,16 @@ def get_model_by_id_and_layer_original(cell_filename, shuffle_seed: int, inputs_
     return model
 
 
+def find_highest_valid_data(y):
+    new_y = np.array([0 for _ in range(y.shape[1])])
+    for idx in range(y.shape[0]):
+        if not np.isnan(y[idx][0]):
+            # Select the highest test acc
+            if y[idx][2] > new_y[2]:
+                new_y = np.array([y[idx][i] for i in range(y.shape[1])])
+
+    return new_y[1]
+
 class NasBench101Dataset(Dataset):
     def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10,
                  preprocessed=False, repeat=1, mid_point=None, request_lower=None, **kwargs):
@@ -609,33 +619,30 @@ class NasBench101Dataset(Dataset):
 
         output = []
 
-        if self.request_lower is not None:
-            for i in range(self.start, self.end + 1):
-                data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+        for i in range(self.start, self.end + 1):
+            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
 
-                if self.preprocessed:
-                    if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
-                        continue
+            if self.preprocessed:
+                if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
+                    continue
 
+            highest_valid_acc = find_highest_valid_data(data['y'])
+
+            # request split mode
+            if self.request_lower is not None:
                 # valid acc < mid_point
                 if self.request_lower:
-                    if data['y'][0][0] <= self.mid_point:
+                    if highest_valid_acc <= self.mid_point:
                         output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
                 else:
-                    if data['y'][0][0] > self.mid_point:
+                    if highest_valid_acc > self.mid_point:
                         output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
 
-        else:
-            for i in range(self.start, self.end + 1):
-                data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
-
-                if self.preprocessed:
-                    if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
-                        continue
-
+            # normal mode
+            else:
                 if self.repeat > 1:
                     # valid acc < mid_point
-                    if data['y'][0][0] < self.mid_point:
+                    if highest_valid_acc <= self.mid_point:
                         for _ in range(self.repeat):
                             output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
                     else:
