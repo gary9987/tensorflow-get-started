@@ -19,9 +19,7 @@ def test_method(weight_path, mid_point):
     weight_alpha = 1
 
     model = keras.models.load_model(weight_path,
-                                    custom_objects={
-                                        'weighted_mse': get_weighted_mse_loss_func(mid_point, weight_alpha)})
-    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=mid_point, alpha=weight_alpha))
+                                    custom_objects={'weighted_mse': get_weighted_mse_loss_func(mid_point, weight_alpha)})
 
     test_datasets = [
         NasBench101Dataset(start=145001, end=169593, preprocessed=True),
@@ -45,7 +43,6 @@ def test_method(weight_path, mid_point):
     loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
     print('Test loss: {}'.format(loss))
     logging.info('Test loss: {}'.format(loss))
-    # Test loss: [0.00380403408780694, 0.00380403408780694]
 
     # delta <= mid_point%, > mid_point80%
     delta = [{}, {}]
@@ -71,8 +68,8 @@ def test_method(weight_path, mid_point):
             except:
                 logging.info(f'Data out of range label: {valid_label}, pred: {valid_predict}')
 
-            label_array = np.concatenate((label_array, np.array(1 if valid_label > mid_point else 0)), axis=None)
-            pred_array = np.concatenate((pred_array, np.array(1 if valid_predict > mid_point else 0)), axis=None)
+            label_array = np.concatenate((label_array, np.array(0 if valid_label <= mid_point else 1)), axis=None)
+            pred_array = np.concatenate((pred_array, np.array(0 if valid_predict <= mid_point else 1)), axis=None)
 
     for i in range(2):
         if i == 0:
@@ -98,7 +95,7 @@ def test_method(weight_path, mid_point):
     test_loader = BatchLoader(test_datasets[2], batch_size=batch_size, shuffle=False, epochs=1)
     loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
     print('Test MSE loss for upper split: {}'.format(loss))
-    logging.info('Test loss for upper split: {}'.format(loss))
+    logging.info('Test MSE loss for upper split: {}'.format(loss))
 
     model.compile('adam', loss='mae')
     test_loader = BatchLoader(test_datasets[1], batch_size=batch_size, shuffle=False, epochs=1)

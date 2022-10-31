@@ -59,8 +59,9 @@ if __name__ == '__main__':
         datasets[key].apply(SelectNoneNanData_NasBench101())
         logging.info(f'key {datasets[key]}')
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=mid_point, alpha=weight_alpha))
+
+    model.compile(tf.keras.optimizers.Adam(learning_rate=lr),
+                  loss=get_weighted_mse_loss_func(mid_point=mid_point, alpha=weight_alpha))
 
     train_loader = BatchLoader(datasets['train'], batch_size=batch_size, shuffle=True)
     valid_loader = BatchLoader(datasets['valid'], batch_size=batch_size, shuffle=False)
@@ -92,7 +93,7 @@ if __name__ == '__main__':
     for data in test_loader:
         pred = model.predict(data[0])
         for i, j in zip(data[1], pred):
-            if i[0] <= mid_point:
+            if i[1] <= mid_point:
                 logging.info(f'{i} {j}')
 
     test_method(weight_filename, mid_point)
