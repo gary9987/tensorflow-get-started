@@ -1,13 +1,25 @@
 # nasbench should be running on tf1.x
+import os
 import pickle
+import subprocess
+from pathlib import Path
 from nasbench import api
+import numpy as np
 
 if __name__ == '__main__':
     file = open('../incremental/cell_list.pkl', 'rb')
     cell_list = pickle.load(file)
     file.close()
 
-    nasbench = api.NASBench('./nas-bench-101-data/nasbench_only108.tfrecord')
+    nasbench_data_dir = Path('nas-bench-101-data')
+    nasbench_only108_filename = Path('nasbench_only108.tfrecord')
+    if not os.path.exists(nasbench_data_dir / nasbench_only108_filename):
+        os.makedirs(nasbench_data_dir)
+        subprocess.check_output(
+            f'wget https://storage.googleapis.com/nasbench/nasbench_only108.tfrecord; mv {nasbench_only108_filename.name} {nasbench_data_dir}',
+            shell=True)
+
+    nasbench = api.NASBench(str(nasbench_data_dir / nasbench_only108_filename))
 
     new_list = []
     
@@ -32,7 +44,7 @@ if __name__ == '__main__':
             skip_count += 1
             #print('skip with error ', matrix, cell[1])
 
-    with open('./nas-bench-101-data/nasbench_101_cell_list.pkl', 'wb') as f:
+    with open(nasbench_data_dir / Path('nasbench_101_cell_list.pkl'), 'wb') as f:
         pickle.dump(new_list, f)
     
     print(f'Finish with skip {skip_count}')
