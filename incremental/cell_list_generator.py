@@ -1,6 +1,9 @@
 import itertools
 import csv
 import hashlib
+import os.path
+from pathlib import Path
+
 import numpy as np
 import pickle
 from model_builder import CellModel
@@ -51,10 +54,20 @@ def is_valid_matrix(matrix):
 
 
 class Matrix_Generator:
-    def __init__(self, size, edge_limit):
+    def __init__(self, size, edge_limit, data_dir='cell_list_data'):
         self.size = size
         self.edge_limit = edge_limit
         self.matrix_list = []
+        self.data_dir = Path(data_dir)
+        if not self.data_dir.exists():
+            self.data_dir.mkdir()
+
+        self.map_size2ops = {2: ['INPUT', 'OUTPUT'],
+                        3: ['INPUT', 'CONV1X1', 'OUTPUT'],
+                        4: ['INPUT', 'CONV1X1', 'CONV3X3', 'OUTPUT'],
+                        5: ['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'OUTPUT'],
+                        6: ['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'OUTPUT'],
+                        7: ['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3', 'OUTPUT']}
 
     def generate_valid_matrix(self):
         rowx = [list() for _ in range(self.size)]
@@ -71,24 +84,25 @@ class Matrix_Generator:
         for cell in itertools.product(*[x for x in rowx]):
             try:
                 if sum(sum(list(cell), [])) <= self.edge_limit and is_valid_matrix(list(cell)):
-                    model_spec.ModelSpec(matrix=list(cell),
-                                         ops=['INPUT', 'CONV1X1', 'CONV3X3', 'CONV3X3', 'CONV3X3', 'MAXPOOL3X3',
-                                              'OUTPUT'])
+                    model_spec.ModelSpec(matrix=list(cell), ops=self.map_size2ops[self.size])
                     self.matrix_list.append(list(cell))
             except:
                 not_valid += 1
 
         print('Matrix list length is', len(self.matrix_list))
-        print("Not valid amount: ", not_valid)
+        print("Invalid amount: ", not_valid)
 
     def dump_to_file(self, filename='./matrix_list.pkl'):
         if len(self.matrix_list) == 0:
             print('Please call generate_valid_matrix() first')
             return
-        with open(filename, 'wb') as f:
+
+        file_path = self.data_dir / Path(filename)
+        with open(file_path, 'wb') as f:
             pickle.dump(self.matrix_list, f)
-        print(filename)
-        return filename
+
+        print(str(file_path))
+        return str(file_path)
 
 
 def matrix_to_arch_path(matrix, ops=None):
@@ -116,8 +130,8 @@ def matrix_to_arch_path(matrix, ops=None):
     return arch
 
 
-def dump_cell_list_by_matrix_list(size=7, matrix_filename='./matrix_list.pkl', filename='./cell_list.pkl'):
-    file = open(matrix_filename, 'rb')
+def dump_cell_list_by_matrix_list(size=7, in_matrix_filename='./matrix_list.pkl', out_cell_list_filename='./cell_list.pkl'):
+    file = open(in_matrix_filename, 'rb')
     matrix_list = pickle.load(file)
     file.close()
 
@@ -150,22 +164,25 @@ def dump_cell_list_by_matrix_list(size=7, matrix_filename='./matrix_list.pkl', f
                     record.append([matrix, ops])
 
     print('Cell list length is', len(record))
-    with open(filename, 'wb') as f:
+    with open(out_cell_list_filename, 'wb') as f:
         pickle.dump(record, f)
-    print(filename)
+    print(out_cell_list_filename)
 
 
 if __name__ == '__main__':
-    # dump_matrix_list()
+    data_dir = 'cell_list_data'
+    size = 7
+    matrix_filename = f'matrix_list_{size}.pkl'
+    cell_list_filename = f'cell_list_{size}.pkl'
 
-    matrix_generator = Matrix_Generator(size=7, edge_limit=9)
+    matrix_generator = Matrix_Generator(size=size, edge_limit=9, data_dir=data_dir)
     matrix_generator.generate_valid_matrix()
-    matrix_generator.dump_to_file()
+    matrix_generator.dump_to_file(filename=matrix_filename)
 
-    dump_cell_list_by_matrix_list(size=7)
-    '''
-    file = open('./cell_list.pkl', 'rb')
+    dump_cell_list_by_matrix_list(size, os.path.join(data_dir, matrix_filename), os.path.join(data_dir, cell_list_filename))
+
+    file = open(os.path.join(data_dir, cell_list_filename), 'rb')
     cell_list = pickle.load(file)
     file.close()
     print(cell_list[0])
-    '''
+
