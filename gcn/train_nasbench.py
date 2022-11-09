@@ -1,108 +1,104 @@
-import tensorflow.keras.layers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, Dropout
-from spektral.layers import ECCConv, GlobalSumPool, GlobalMaxPool, GlobalAvgPool
+import sys
 from spektral.data import BatchLoader
+from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
 import tensorflow as tf
-import tensorflow.keras.backend as K
+from tensorflow.keras.callbacks import EarlyStopping
+from nasbench_model import GNN_Model, get_weighted_mse_loss_func
+from test_nasbench import test_method
 
 
-class GNN_Model(Model):
-
-    def __init__(self, n_hidden, activation: str, dropout=0.):
-        super(GNN_Model, self).__init__()
-        self.graph_conv = ECCConv(n_hidden, activation=activation)
-        self.bn = tensorflow.keras.layers.BatchNormalization()
-        self.pool = GlobalMaxPool()
-        self.dropout = tensorflow.keras.layers.Dropout(dropout)
-        self.dense = Dense(3)  # train_acc, valid_acc, test_acc
-
-    def call(self, inputs):
-        out = self.graph_conv(inputs)
-        out = self.bn(out)
-        out = self.pool(out)
-        out = self.dropout(out)
-        out = self.dense(out)
-        return out
-
-
-def get_weighted_mse_loss_func(mid_point, alpha):
-
-    def weighted_mse(y_true, y_pred):
-        scale_mse_loss = K.switch((y_true < mid_point), alpha * tf.square(y_true - y_pred), tf.square(y_true - y_pred))
-        return tf.reduce_mean(scale_mse_loss, axis=-1)
-
-    return weighted_mse
-
-
-if __name__ == '__main__':
-    logging.basicConfig(filename='train.log', level=logging.INFO, force=True)
-
+def train(mid_point):
     train_epochs = 100
     model_hidden = 256
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 64
+    batch_size = 128
     weight_alpha = 1
-    repeat = 436
+    repeat = 1
     lr = 1e-3
+    mid_point = mid_point
+    mlp_hidden = [64, 64, 64, 64]
+    #mlp_hidden = None
+    is_filtered = True
+    patience = 20
 
-    train_dataset = NasBench101Dataset(start=0, end=120000, preprocessed=True, repeat=repeat)
-    valid_dataset = NasBench101Dataset(start=120001, end=160000, preprocessed=True)  # 80000 80250
-    #train_dataset = NasBench101Dataset(start=0, end=100)
-    #valid_dataset = NasBench101Dataset(start=0, end=100)  # 80000 80250
+    model = GNN_Model(n_hidden=model_hidden, mlp_hidden=mlp_hidden, activation=model_activation, dropout=model_dropout)
 
-    train_dataset.apply(NormalizeParAndFlop_NasBench101())
-    valid_dataset.apply(NormalizeParAndFlop_NasBench101())
+    # Set logger
+    if mlp_hidden is not None:
+        weight_filename = model.graph_conv.name + f'_filter{is_filtered}_mp{mid_point}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{tuple(mlp_hidden)}'
+    else:
+        weight_filename = model.graph_conv.name + f'_filter{is_filtered}_mp{mid_point}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{mlp_hidden}'
 
-    train_dataset.apply(RemoveTrainingTime_NasBench101())
-    valid_dataset.apply(RemoveTrainingTime_NasBench101())
+    print(weight_filename)
 
-    train_dataset.apply(Normalize_x_10to15_NasBench101())
-    valid_dataset.apply(Normalize_x_10to15_NasBench101())
+    logging.basicConfig(filename=f'valid_log/{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logging.getLogger().addHandler(handler)
 
-    train_dataset.apply(NormalizeLayer_NasBench101())
-    valid_dataset.apply(NormalizeLayer_NasBench101())
+    datasets = {
+        'train': NasBench101Dataset(start=0, end=155000, matrix_size_list=[3, 4, 5, 6, 7],preprocessed=is_filtered, repeat=repeat, mid_point=mid_point/100),
+        'valid': NasBench101Dataset(start=155001, end=174800, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered),
+        'test': NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered),
+    }
 
-    train_dataset.apply(LabelScale_NasBench101())
-    valid_dataset.apply(LabelScale_NasBench101())
+    for key in datasets:
+        datasets[key].apply(NormalizeParAndFlop_NasBench101())
+        datasets[key].apply(RemoveTrainingTime_NasBench101())
+        datasets[key].apply(Normalize_x_10to15_NasBench101())
+        datasets[key].apply(NormalizeLayer_NasBench101())
+        datasets[key].apply(LabelScale_NasBench101())
+        datasets[key].apply(NormalizeEdgeFeature_NasBench101())
+        if 'ecc_con' not in weight_filename:
+            datasets[key].apply(RemoveEdgeFeature_NasBench101())
+        datasets[key].apply(SelectNoneNanData_NasBench101())
+        logging.info(f'key {datasets[key]}')
 
-    train_dataset.apply(NormalizeEdgeFeature_NasBench101())
-    valid_dataset.apply(NormalizeEdgeFeature_NasBench101())
 
-    train_dataset.apply(SelectNoneNanData_NasBench101())
-    valid_dataset.apply(SelectNoneNanData_NasBench101())
+    model.compile(tf.keras.optimizers.Adam(learning_rate=lr),
+                  loss=get_weighted_mse_loss_func(mid_point=mid_point, alpha=weight_alpha))
 
-    print(train_dataset, valid_dataset)
+    train_loader = BatchLoader(datasets['train'], batch_size=batch_size, shuffle=True)
+    valid_loader = BatchLoader(datasets['valid'], batch_size=batch_size, shuffle=False)
 
-    model = GNN_Model(n_hidden=model_hidden, activation=model_activation, dropout=model_dropout)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-    model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=weight_alpha))
+    history = model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch,
+                        validation_data=valid_loader.load(), validation_steps=valid_loader.steps_per_epoch,
+                        epochs=train_epochs,
+                        callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
+                                   CSVLogger(f"learning_curve/{weight_filename}_history.log")])
 
-    train_loader = BatchLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    logging.info(f'{model.summary()}')
 
-    model.fit(train_loader.load(), steps_per_epoch=train_loader.steps_per_epoch, epochs=train_epochs)
-    model.save('weights')
+    logging.info(f'Model will save to {weight_filename}')
+    model.save(weight_filename)
 
-    valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-    loss = model.evaluate(valid_loader.load(), steps=valid_loader.steps_per_epoch)
-    print('Test loss: {}'.format(loss))
+    test_loader = BatchLoader(datasets['test'], batch_size=batch_size, shuffle=False, epochs=1)
+    # model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=1))
+    loss = model.evaluate(test_loader.load(), steps=valid_loader.steps_per_epoch)
     logging.info('Test loss: {}'.format(loss))
-    # Test loss: [0.00380403408780694, 0.00380403408780694]
 
-    valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-    for data in valid_loader:
+    test_loader = BatchLoader(datasets['test'], batch_size=batch_size, shuffle=False, epochs=1)
+    for data in test_loader:
         pred = model.predict(data[0])
         for i, j in zip(data[1], pred):
             logging.info(f'{i} {j}')
 
-    valid_loader = BatchLoader(valid_dataset, batch_size=batch_size, shuffle=False, epochs=1)
+    test_loader = BatchLoader(datasets['test'], batch_size=batch_size, shuffle=False, epochs=1)
     logging.info('******************************************************************************')
-    for data in valid_loader:
+    for data in test_loader:
         pred = model.predict(data[0])
         for i, j in zip(data[1], pred):
-            if i[0] <= 80:
+            if i[1] <= mid_point:
                 logging.info(f'{i} {j}')
+
+    test_method(weight_filename, mid_point)
+
+
+if __name__ == '__main__':
+    train(mid_point=20)

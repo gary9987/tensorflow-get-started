@@ -3,21 +3,23 @@ import random
 from spektral.data import Dataset, Graph
 import pickle
 import numpy as np
-import csv
 from model_spec import ModelSpec
 import tensorflow as tf
-from tensorflow.python.profiler.model_analyzer import profile
-from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
 from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2_as_graph
-import model_util
-from classifier import Classifier
 import os
 import wget
-from keras import backend as K
 from os import path
 import re
 import hashlib
 import model_builder
+from keras import backend as K
+from classifier import Classifier
+import model_util
+from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
+from tensorflow.python.profiler.model_analyzer import profile
+import csv
+
+
 
 logging.basicConfig(filename='nas_bench_101_dataset.log', level=logging.INFO)
 
@@ -315,16 +317,32 @@ def get_model_by_id_and_layer_original(cell_filename, shuffle_seed: int, inputs_
     return model
 
 
+def find_highest_valid_data(y):
+    new_y = np.array([0 for _ in range(y.shape[1])])
+    for idx in range(y.shape[0]):
+        if not np.isnan(y[idx][0]):
+            # Select the highest test acc
+            if y[idx][2] > new_y[2]:
+                new_y = np.array([y[idx][i] for i in range(y.shape[1])])
+
+    return new_y[1]
+
 class NasBench101Dataset(Dataset):
-    def __init__(self, start, end, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10, preprocessed=False, repeat=1, **kwargs):
+    def __init__(self, start: int, end: int, matrix_size: int=None, matrix_size_list: list=None, record_dic: list=None,
+                 shuffle_seed=0, shuffle=True, inputs_shape=None, num_classes=10,
+                 preprocessed=False, repeat=1, mid_point: int=None, request_lower: bool=None, **kwargs):
         """
         :param start: The start index of data you want to query.
         :param end: The end index of data you want to query.
         :param record_dic: open('./nas-bench-101-data/nasbench_101_cell_list.pkl', 'rb')
+        :param matrix_size: set the size of matrix to process
+        :param matrix_size_list: set the list of size of matrix to load as dataset
         :param shuffle_seed: 0
+        :param shuffle: shuffle when load the data, it prevents low acc data concentrated in frontend of data
         :param inputs_shape: (None, 32, 32, 3)
         :param num_classes: Number of the classes of the dataset
         :param preprocessed: Use the preprocessed dataset
+        :param repeat: if repeat > 1 then mid_point is required to set, this repeat the data which acc lower than midpoint
 
         Direct use the dataset with set the start and end parameters,
         or if you want to preprocess again, unmark the marked download() function and set the all parameters.
@@ -338,18 +356,29 @@ class NasBench101Dataset(Dataset):
         self.num_features = len(self.features_dict)
         self.inputs_shape = inputs_shape
         self.num_classes = num_classes
-        self.start = start
-        self.end = end
         self.preprocessed = preprocessed
         if preprocessed:
-            self.file_path = 'Preprocessed_NasBench101Dataset'
+            self.file_path_prefix = 'Preprocessed_NasBench101Dataset'
+            self.file_path_suffix = 'Preprocessed_NasBench101Dataset_'
         else:
-            self.file_path = 'NasBench101Dataset'
+            self.file_path_prefix = 'NasBench101Dataset'
+            self.file_path_suffix = 'NasBench101Dataset_'
+
+        self.file_path = self.file_path_prefix + '/' + self.file_path_suffix + f'{matrix_size}'
         self.shuffle_seed = shuffle_seed
-        self.cell_filename = './nas-bench-101-data/nasbench_101_cell_list.pkl'
+        self.shuffle = shuffle
+        self.cell_filename = f'./nas-bench-101-data/nasbench_101_cell_list_{matrix_size}.pkl'
         self.total_layers = 11
         self.record_dic = record_dic
         self.repeat = repeat
+        if mid_point is not None and mid_point >= 10:
+            raise Exception("the range of mid_point is < 10")
+        self.mid_point = mid_point
+        self.request_lower = request_lower
+        self.matrix_size = matrix_size
+        self.matrix_size_list = matrix_size_list
+        self.start = start
+        self.end = end
 
         if self.record_dic is not None:
             random.seed(shuffle_seed)
@@ -357,8 +386,9 @@ class NasBench101Dataset(Dataset):
 
         super().__init__(**kwargs)
 
+
     def download(self):
-        if not os.path.exists(self.file_path):
+        if not os.path.exists(self.file_path_prefix):
             print('Downloading...')
             if self.preprocessed:
                 file_name = wget.download('https://www.dropbox.com/s/muetcgm9l1e01mc/Preprocessed_NasBench101Dataset.zip?dl=1')
@@ -367,21 +397,21 @@ class NasBench101Dataset(Dataset):
             print('Save dataset to {}'.format(file_name))
             os.system('unzip {}'.format(file_name))
             print(f'Unzip dataset finish.')
-
+    
     '''
     def download(self):  # preprocessing
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
 
-        profile_dir = './tmp_profile/'
+        profile_dir = f'./tmp_profile_{self.size}/'
         if not os.path.exists(profile_dir):
             os.mkdir(profile_dir)
 
         total_layers = self.total_layers
 
         for record, no in zip(self.record_dic[self.start: self.end + 1], range(self.start, self.end + 1)):
-            if os.path.exists(os.path.join(self.file_path, f'graph_{no}.npz')):
-                continue
+            #if os.path.exists(os.path.join(self.file_path, f'graph_{no}.npz')):
+            #    continue
 
             matrix, ops, layers = np.array(record[0]), record[1], total_layers
             spec = ModelSpec(np.array(matrix), ops)
@@ -456,15 +486,25 @@ class NasBench101Dataset(Dataset):
 
                     skip_cot = 0
                     for i in range(len(ops)):
-                        x[i + node_start_no][self.features_dict['num_layer']] = accumulation_layer + node_depth[i]
-                        x[i + node_start_no][self.features_dict[ops[i]]] = 1
+                        if i == len(ops) - 1:
+                            x[6 + node_start_no][self.features_dict['num_layer']] = accumulation_layer + node_depth[i]
+                            x[6 + node_start_no][self.features_dict[ops[i]]] = 1
+                        else:
+                            x[i + node_start_no][self.features_dict['num_layer']] = accumulation_layer + node_depth[i]
+                            x[i + node_start_no][self.features_dict[ops[i]]] = 1
+
+                        # Get cell layer params and flops
                         if 1 <= i <= len(cell_layer.ops):  # cell_layer ops
-                            if len(cell_layer.ops) == 5:  # no need to skip
+                            if len(cell_layer.ops) == len(ops) - 2:  # no need to skip
                                 offset_idx = i + node_start_no
                             else:
                                 if np.all(matrix[i] == 0):
                                     skip_cot += 1
                                 offset_idx = i + node_start_no + skip_cot
+
+                            # if is output node
+                            if i == len(ops) - 1:
+                                offset_idx = 6
 
                             x[offset_idx][self.features_dict['flops']] = \
                                 get_flops(model, profile_name, cell_layer.ops[i].name)
@@ -527,16 +567,21 @@ class NasBench101Dataset(Dataset):
                     now_group = now_layer // 4 + 1
                     node_start_no = now_group + 7 * (now_layer - now_group)
                     for i in range(matrix.shape[0]):
-                        if i == 6:
+                        if i == matrix.shape[0] - 1:
                             if now_layer == layers:
-                                adj_matrix[i + node_start_no][self.nodes - 1] = 1  # to classifier
+                                # to classifier
+                                adj_matrix[6 + node_start_no][self.nodes - 1] = 1
                             else:
-                                adj_matrix[i + node_start_no][
-                                    i + node_start_no + 1] = 1  # output node to next input node
+                                # output node to next input node
+                                adj_matrix[6 + node_start_no][i + node_start_no + (7 - matrix.shape[0]) + 1] = 1
                         else:
                             for j in range(matrix.shape[1]):
                                 if matrix[i][j] == 1:
-                                    adj_matrix[i + node_start_no][j + node_start_no] = 1
+                                    if j == matrix.shape[0] - 1:
+                                        # X node to output node
+                                        adj_matrix[i + node_start_no][6 + node_start_no] = 1
+                                    else:
+                                        adj_matrix[i + node_start_no][j + node_start_no] = 1
 
             # Edges E
             e = np.zeros((self.nodes, self.nodes, 1), dtype=float)
@@ -578,7 +623,7 @@ class NasBench101Dataset(Dataset):
                     else:
                         now_cot = 0
                         for n in range(len(tmp_channels)):
-                            if np.all(matrix[now_cot] == 0) and now_cot != 6:
+                            if np.all(matrix[now_cot] == 0) and now_cot != num_nodes - 1:
                                 now_cot += 1
                                 node_channels[now_cot] = tmp_channels[n]
                             else:
@@ -586,15 +631,18 @@ class NasBench101Dataset(Dataset):
                             now_cot += 1
 
                     for i in range(matrix.shape[0]):
-                        if i == 6:  # output node to next input node
+                        if i == matrix.shape[0] - 1:  # output node to next input node
                             if now_layer == layers:
-                                e[i + node_start_no][self.nodes - 1][0] = now_channel
+                                e[6 + node_start_no][self.nodes - 1][0] = now_channel
                             else:
-                                e[i + node_start_no][i + node_start_no + 1][0] = now_channel
+                                e[6 + node_start_no][i + node_start_no + (7 - matrix.shape[0]) + 1][0] = now_channel
                         else:
                             for j in range(matrix.shape[1]):
                                 if matrix[i][j] == 1:
-                                    e[i + node_start_no][j + node_start_no][0] = node_channels[j]
+                                    if j == matrix.shape[0] - 1:
+                                        e[i + node_start_no][6 + node_start_no][0] = node_channels[j]
+                                    else:
+                                        e[i + node_start_no][j + node_start_no][0] = node_channels[j]
 
             filename = os.path.join(self.file_path, f'graph_{no}.npz')
             np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
@@ -602,37 +650,84 @@ class NasBench101Dataset(Dataset):
     '''
 
     def read(self):
+        if self.repeat > 1 or self.request_lower is not None:
+            if self.mid_point is None:
+                raise Exception("mid_point is not set")
+
         output = []
+        filename_list = []
+
+        if self.matrix_size_list is not None:
+            matrix_size_list = self.matrix_size_list
+        else:
+            matrix_size_list = [self.matrix_size]
+
+        for size in matrix_size_list:
+            path = self.file_path_prefix + '/' + self.file_path_suffix + f'{size}'
+            for i in range(len(os.listdir(path))):
+                #with np.load(os.path.join(path, f'graph_{i}.npz')) as npz:
+                #    data = {'x': npz['x'], 'e': npz['e'], 'a': npz['a'], 'y': npz['y']}
+                filename_list.append(os.path.join(path, f'graph_{i}.npz'))
+
+        if self.shuffle:
+            random.seed(self.shuffle_seed)
+            random.shuffle(filename_list)
+
         for i in range(self.start, self.end + 1):
-            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+            if i >= len(filename_list):
+                print(f'The len of data is {len(filename_list)}')
+                break
+
+            data = np.load(filename_list[i])
 
             if self.preprocessed:
                 if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
                     continue
 
-            if self.repeat > 1 and data['y'][0][0] < 0.8:
-                for r in range(self.repeat):
-                    output.append(
-                        Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
-                    )
+            highest_valid_acc = find_highest_valid_data(data['y'])
+
+            # request split mode
+            if self.request_lower is not None:
+                # valid acc < mid_point
+                if self.request_lower:
+                    if highest_valid_acc <= self.mid_point:
+                        output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+                else:
+                    if highest_valid_acc > self.mid_point:
+                        output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+
+            # normal mode
             else:
-                output.append(
-                    Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y'])
-                )
+                if self.repeat > 1:
+                    # valid acc < mid_point
+                    if highest_valid_acc <= self.mid_point:
+                        for _ in range(self.repeat):
+                            output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+                    else:
+                        output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+                else:
+                    output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
 
         return output
 
 
 if __name__ == '__main__':
-    file = open('./nas-bench-101-data/nasbench_101_cell_list.pkl', 'rb')
-    record = pickle.load(file)
-    file.close()
+    size = 5
+    with open(f'./nas-bench-101-data/nasbench_101_cell_list_{size}.pkl', 'rb') as f:
+        record = pickle.load(f)
 
     print(len(record))
 
-    #dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
+    # dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
     #                             end=len(record), inputs_shape=(None, 32, 32, 3), num_classes=10)
 
     # Test read()
     dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
-                                 end=5000, inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                 end=len(record)-1, matrix_size=size, inputs_shape=(None, 32, 32, 3), num_classes=10)
+
+    #dataset2 = NasBench101Dataset(start=0, end=194617, matrix_size_list=[3,4,5,6,7], preprocessed=True)
+    '''
+    data = np.load(os.path.join('NasBench101Dataset_7', 'graph_0.npz'))
+    data2 = np.load(os.path.join('NasBench101Dataset', 'graph_0.npz'))
+    print((data2['y'] == data['y']).all())
+    '''

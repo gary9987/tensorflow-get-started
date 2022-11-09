@@ -1,5 +1,5 @@
 import numpy as np
-
+from spektral.data import Graph
 
 class RemoveParAndFlopTransform:
     def __call__(self, graph):
@@ -69,11 +69,14 @@ class SelectLabelQueryIdx_NasBench101:
 class SelectNoneNanData_NasBench101:
     def __call__(self, graph):
         if graph.y is not None:
+            new_y = np.array([0 for _ in range(graph.y.shape[1])])
             for idx in range(graph.y.shape[0]):
                 if not np.isnan(graph.y[idx][0]):
-                    new_y = np.array([graph.y[idx][i] for i in range(graph.y.shape[1])])
-                    graph.y = new_y
-                    break
+                    # Select the highest test acc
+                    if graph.y[idx][2] > new_y[2]:
+                        new_y = np.array([graph.y[idx][i] for i in range(graph.y.shape[1])])
+
+            graph.y = new_y
 
         return graph
 
@@ -133,3 +136,9 @@ class NormalizeEdgeFeature_NasBench101:
         if graph.e is not None:
             graph.e /= 512
         return graph
+
+
+class RemoveEdgeFeature_NasBench101:
+    def __call__(self, graph):
+        ret = Graph(x=graph.x, a=graph.a, y=graph.y)
+        return ret
