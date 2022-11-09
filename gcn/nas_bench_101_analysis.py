@@ -2,25 +2,29 @@ import numpy as np
 import os
 
 if __name__ == '__main__':
-
-    #file_path = 'Preprocessed_NasBench101Dataset'
-    file_path = 'NasBench101Dataset'
-
     out = [np.zeros((1, 3))] * 3
 
     more_than_80 = 0
     under80 = 0
 
-    for no in range(0, 169593+1):  #169593+1):
-        data = np.load(os.path.join(file_path, f'graph_{no}.npz'))
-        y = data['y']
+    for size in range(3, 7+1):
 
-        for idx in range(1, 2):
-            if not np.isnan(y[idx][1]):
-                if y[idx][1] <= 0.8:
-                    under80 += 1
-                else:
-                    more_than_80 += 1
+        #file_path = f'Preprocessed_NasBench101Dataset/Preprocessed_NasBench101Dataset_{size}'
+        file_path = f'NasBench101Dataset/NasBench101Dataset_{size}'
+
+        for no in range(0, 169593+1):  #169593+1):
+            try:
+                data = np.load(os.path.join(file_path, f'graph_{no}.npz'))
+                y = data['y']
+
+                for idx in range(1, 2):
+                    if not np.isnan(y[idx][1]):
+                        if y[idx][1] <= 0.8:
+                            under80 += 1
+                        else:
+                            more_than_80 += 1
+                        break
+            except:
                 break
 
     print(more_than_80, under80)
@@ -29,10 +33,14 @@ if __name__ == '__main__':
     # valid 120001~145000: 24768, 98
     # test  145001~169593: 24336, 126
 
+    # All Filtered all size 193799 818
+
     # All Non-filtered    168012 1582
     # train 0~120000      118889  1112
     # valid 120001~145000: 24776, 224
     # test  145001~169593: 24347, 246
+
+    # All Non-filtered all size 193856 1843
 
 
     '''

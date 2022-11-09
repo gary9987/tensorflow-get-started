@@ -16,8 +16,8 @@ def train(mid_point):
     model_activation = 'relu'
     model_dropout = 0.2
     batch_size = 128
-    weight_alpha = 5
-    repeat = 80
+    weight_alpha = 1
+    repeat = 1
     lr = 1e-3
     mid_point = mid_point
     mlp_hidden = [64, 64, 64, 64]
@@ -33,6 +33,8 @@ def train(mid_point):
     else:
         weight_filename = model.graph_conv.name + f'_filter{is_filtered}_mp{mid_point}_a{weight_alpha}_r{repeat}_m{model_hidden}_b{batch_size}_dropout{model_dropout}_lr{lr}_mlp{mlp_hidden}'
 
+    print(weight_filename)
+
     logging.basicConfig(filename=f'valid_log/{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
@@ -41,9 +43,9 @@ def train(mid_point):
     logging.getLogger().addHandler(handler)
 
     datasets = {
-        'train': NasBench101Dataset(start=0, end=120000, preprocessed=is_filtered, repeat=repeat, mid_point=mid_point/100),
-        'valid': NasBench101Dataset(start=120001, end=145000, preprocessed=is_filtered),
-        'test': NasBench101Dataset(start=145001, end=169593, preprocessed=is_filtered),
+        'train': NasBench101Dataset(start=0, end=155000, matrix_size_list=[3, 4, 5, 6, 7],preprocessed=is_filtered, repeat=repeat, mid_point=mid_point/100),
+        'valid': NasBench101Dataset(start=155001, end=174800, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered),
+        'test': NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered),
     }
 
     for key in datasets:
@@ -99,5 +101,4 @@ def train(mid_point):
 
 
 if __name__ == '__main__':
-    for i in range(10, 91, 10):
-        train(mid_point=i)
+    train(mid_point=20)

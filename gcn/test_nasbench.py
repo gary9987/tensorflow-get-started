@@ -10,7 +10,9 @@ from nasbench_model import get_weighted_mse_loss_func
 
 
 def test_method(weight_path, mid_point):
+    #log_path = f'test_result/gin_conv_batch_filterTrue_mp{mid_point}_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)_test.log'
     log_path = f'test_result/{weight_path}_test.log'
+
     if os.path.exists(log_path):
         os.remove(log_path)
 
@@ -22,9 +24,11 @@ def test_method(weight_path, mid_point):
                                     custom_objects={'weighted_mse': get_weighted_mse_loss_func(mid_point, weight_alpha)})
 
     test_datasets = [
-        NasBench101Dataset(start=145001, end=169593, preprocessed=True),
-        NasBench101Dataset(start=145001, end=169593, preprocessed=True, mid_point=mid_point / 100, request_lower=True),
-        NasBench101Dataset(start=145001, end=169593, preprocessed=True, mid_point=mid_point / 100, request_lower=False),
+        NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True),
+        NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True,
+                           mid_point=mid_point / 100, request_lower=True),
+        NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True,
+                           mid_point=mid_point / 100, request_lower=False)
     ]  # 145001 169593
     print(test_datasets)
 
@@ -123,5 +127,8 @@ if __name__ == '__main__':
         if os.path.isdir(filename) and is_weight_dir(filename):
             print(f'Now test {filename}')
             test_method(filename)
+    
+    for i in range(10, 91, 10):
+        print(f'Now mp is {i}')
     '''
     test_method('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)
