@@ -328,13 +328,17 @@ def find_highest_valid_data(y):
     return new_y[1]
 
 class NasBench101Dataset(Dataset):
-    def __init__(self, start, end, size, record_dic=None, shuffle_seed=0, inputs_shape=None, num_classes=10,
-                 preprocessed=False, repeat=1, mid_point=None, request_lower=None, **kwargs):
+    def __init__(self, start: int, end: int, matrix_size: int=None, matrix_size_list: list=None, record_dic: list=None,
+                 shuffle_seed=0, shuffle=True, inputs_shape=None, num_classes=10,
+                 preprocessed=False, repeat=1, mid_point: int=None, request_lower: bool=None, **kwargs):
         """
         :param start: The start index of data you want to query.
         :param end: The end index of data you want to query.
         :param record_dic: open('./nas-bench-101-data/nasbench_101_cell_list.pkl', 'rb')
+        :param matrix_size: set the size of matrix to process
+        :param matrix_size_list: set the list of size of matrix to load as dataset
         :param shuffle_seed: 0
+        :param shuffle: shuffle when load the data, it prevents low acc data concentrated in frontend of data
         :param inputs_shape: (None, 32, 32, 3)
         :param num_classes: Number of the classes of the dataset
         :param preprocessed: Use the preprocessed dataset
@@ -352,24 +356,29 @@ class NasBench101Dataset(Dataset):
         self.num_features = len(self.features_dict)
         self.inputs_shape = inputs_shape
         self.num_classes = num_classes
-        self.start = start
-        self.end = end
         self.preprocessed = preprocessed
         if preprocessed:
-            self.file_path = f'Preprocessed_NasBench101Dataset_{size}'
+            self.file_path_prefix = 'Preprocessed_NasBench101Dataset'
+            self.file_path_suffix = 'Preprocessed_NasBench101Dataset_'
         else:
-            self.file_path = f'NasBench101Dataset_{size}'
+            self.file_path_prefix = 'NasBench101Dataset'
+            self.file_path_suffix = 'NasBench101Dataset_'
+
+        self.file_path = self.file_path_prefix + '/' + self.file_path_suffix + f'{matrix_size}'
         self.shuffle_seed = shuffle_seed
-        self.cell_filename = f'./nas-bench-101-data/nasbench_101_cell_list_{size}.pkl'
+        self.shuffle = shuffle
+        self.cell_filename = f'./nas-bench-101-data/nasbench_101_cell_list_{matrix_size}.pkl'
         self.total_layers = 11
         self.record_dic = record_dic
         self.repeat = repeat
-        # self.acc_range = acc_range
         if mid_point is not None and mid_point >= 10:
             raise Exception("the range of mid_point is < 10")
         self.mid_point = mid_point
         self.request_lower = request_lower
-        self.size = size
+        self.matrix_size = matrix_size
+        self.matrix_size_list = matrix_size_list
+        self.start = start
+        self.end = end
 
         if self.record_dic is not None:
             random.seed(shuffle_seed)
@@ -377,9 +386,9 @@ class NasBench101Dataset(Dataset):
 
         super().__init__(**kwargs)
 
-    '''
+
     def download(self):
-        if not os.path.exists(self.file_path):
+        if not os.path.exists(self.file_path_prefix):
             print('Downloading...')
             if self.preprocessed:
                 file_name = wget.download('https://www.dropbox.com/s/muetcgm9l1e01mc/Preprocessed_NasBench101Dataset.zip?dl=1')
@@ -638,7 +647,7 @@ class NasBench101Dataset(Dataset):
             filename = os.path.join(self.file_path, f'graph_{no}.npz')
             np.savez(filename, a=adj_matrix, x=x, e=e, y=y)
             logging.info(f'graph_{no}.npz is saved.')
-
+    '''
 
     def read(self):
         if self.repeat > 1 or self.request_lower is not None:
@@ -646,9 +655,30 @@ class NasBench101Dataset(Dataset):
                 raise Exception("mid_point is not set")
 
         output = []
+        filename_list = []
+
+        if self.matrix_size_list is not None:
+            matrix_size_list = self.matrix_size_list
+        else:
+            matrix_size_list = [self.matrix_size]
+
+        for size in matrix_size_list:
+            path = self.file_path_prefix + '/' + self.file_path_suffix + f'{size}'
+            for i in range(len(os.listdir(path))):
+                #with np.load(os.path.join(path, f'graph_{i}.npz')) as npz:
+                #    data = {'x': npz['x'], 'e': npz['e'], 'a': npz['a'], 'y': npz['y']}
+                filename_list.append(os.path.join(path, f'graph_{i}.npz'))
+
+        if self.shuffle:
+            random.seed(self.shuffle_seed)
+            random.shuffle(filename_list)
 
         for i in range(self.start, self.end + 1):
-            data = np.load(os.path.join(self.file_path, f'graph_{i}.npz'))
+            if i >= len(filename_list):
+                print(f'The len of data is {len(filename_list)}')
+                break
+
+            data = np.load(filename_list[i])
 
             if self.preprocessed:
                 if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
@@ -693,7 +723,9 @@ if __name__ == '__main__':
 
     # Test read()
     dataset = NasBench101Dataset(record_dic=record, shuffle_seed=0, start=0,
-                                 end=len(record)-1, size=size, inputs_shape=(None, 32, 32, 3), num_classes=10)
+                                 end=len(record)-1, matrix_size=size, inputs_shape=(None, 32, 32, 3), num_classes=10)
+
+    #dataset2 = NasBench101Dataset(start=0, end=194617, matrix_size_list=[3,4,5,6,7], preprocessed=True)
     '''
     data = np.load(os.path.join('NasBench101Dataset_7', 'graph_0.npz'))
     data2 = np.load(os.path.join('NasBench101Dataset', 'graph_0.npz'))

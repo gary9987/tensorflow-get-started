@@ -1,15 +1,20 @@
+import pickle
 import numpy as np
 import os
 
 if __name__ == '__main__':
+    size = 6
+    cell_list_filename = f'nas-bench-101-data/nasbench_101_cell_list_{size}.pkl'
+    with open(cell_list_filename, 'rb') as f:
+        cell_list = pickle.load(f)
 
-    in_path = 'NasBench101Dataset'
-    out_path = 'Preprocessed_NasBench101Dataset'
+    in_path = f'NasBench101Dataset_{size}'
+    out_path = f'Preprocessed_NasBench101Dataset_{size}'
 
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    for no in range(0, 169594):  # 169594
+    for no in range(0, len(cell_list)):  # 169594
         data = np.load(os.path.join(in_path, f'graph_{no}.npz'))
         y = data['y']
 
