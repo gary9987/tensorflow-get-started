@@ -10,7 +10,7 @@ from nasbench_model import get_weighted_mse_loss_func
 
 
 def test_method(weight_path, mid_point):
-    #log_path = f'test_result/gin_conv_batch_filterTrue_mp{mid_point}_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)_test.log'
+    # log_path = f'test_result/gin_conv_batch_filterTrue_mp{mid_point}_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)_test.log'
     log_path = f'test_result/{weight_path}_test.log'
 
     if os.path.exists(log_path):
@@ -21,7 +21,8 @@ def test_method(weight_path, mid_point):
     weight_alpha = 1
 
     model = keras.models.load_model(weight_path,
-                                    custom_objects={'weighted_mse': get_weighted_mse_loss_func(mid_point, weight_alpha)})
+                                    custom_objects={
+                                        'weighted_mse': get_weighted_mse_loss_func(mid_point, weight_alpha)})
 
     test_datasets = [
         NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True),
@@ -111,6 +112,7 @@ def test_method(weight_path, mid_point):
     loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
     print('Test MAE loss for upper split: {}'.format(loss))
     logging.info('Test MAE loss for upper split: {}'.format(loss))
+
 
 def is_weight_dir(filename):
     check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
