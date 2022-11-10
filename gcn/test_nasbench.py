@@ -7,7 +7,7 @@ from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
 from nasbench_model import get_weighted_mse_loss_func
-
+from test_nasbench_metric import *
 
 def test_method(weight_path, mid_point):
     # log_path = f'test_result/gin_conv_batch_filterTrue_mp{mid_point}_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)_test.log'
@@ -55,6 +55,8 @@ def test_method(weight_path, mid_point):
         delta[0][i] = 0
         delta[1][i] = 0
 
+    label_array_bin = np.array([])
+    pred_array_bin = np.array([])
     label_array = np.array([])
     pred_array = np.array([])
 
@@ -73,8 +75,10 @@ def test_method(weight_path, mid_point):
             except:
                 logging.info(f'Data out of range label: {valid_label}, pred: {valid_predict}')
 
-            label_array = np.concatenate((label_array, np.array(0 if valid_label <= mid_point else 1)), axis=None)
-            pred_array = np.concatenate((pred_array, np.array(0 if valid_predict <= mid_point else 1)), axis=None)
+            label_array_bin = np.concatenate((label_array_bin, np.array(0 if valid_label <= mid_point else 1)), axis=None)
+            pred_array_bin = np.concatenate((pred_array_bin, np.array(0 if valid_predict <= mid_point else 1)), axis=None)
+            label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
+            pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
 
     for i in range(2):
         if i == 0:
@@ -84,13 +88,13 @@ def test_method(weight_path, mid_point):
         for key in delta[i]:
             logging.info(f'Diff range {key * 10}~{key * 10 + 9}: {delta[i][key]}')
 
-    logging.info(f'Confuse matrix: \n{confusion_matrix(label_array, pred_array)}')
+    logging.info(f'Confuse matrix: \n{confusion_matrix(label_array_bin, pred_array_bin)}')
     for i in range(2):
-        logging.info(f'F1-Score for class-{i}: \n{f1_score(label_array, pred_array, pos_label=i)}')
-    logging.info(f'Recall(Sensitivity)-Score: \n{recall_score(label_array, pred_array)}')
-    logging.info(f'Specificity-Score: \n{recall_score(label_array, pred_array, pos_label=0)}')
-    logging.info(f'Accuracy: \n{accuracy_score(label_array, pred_array)}')
-    logging.info(f'Balanced-Accuracy: \n{balanced_accuracy_score(label_array, pred_array)}')
+        logging.info(f'F1-Score for class-{i}: \n{f1_score(label_array_bin, pred_array_bin, pos_label=i)}')
+    logging.info(f'Recall(Sensitivity)-Score: \n{recall_score(label_array_bin, pred_array_bin)}')
+    logging.info(f'Specificity-Score: \n{recall_score(label_array_bin, pred_array_bin, pos_label=0)}')
+    logging.info(f'Accuracy: \n{accuracy_score(label_array_bin, pred_array_bin)}')
+    logging.info(f'Balanced-Accuracy: \n{balanced_accuracy_score(label_array_bin, pred_array_bin)}')
 
     test_loader = BatchLoader(test_datasets[1], batch_size=batch_size, shuffle=False, epochs=1)
     loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
@@ -113,6 +117,25 @@ def test_method(weight_path, mid_point):
     print('Test MAE loss for upper split: {}'.format(loss))
     logging.info('Test MAE loss for upper split: {}'.format(loss))
 
+    num_select = 100
+    num_judge = 50
+
+    pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
+    test_count = 100
+    mis_count = 0
+    kt_sum = 0
+    p_value_sum = 0
+
+    for _ in range(test_count):
+        kt, p = kendalltau(pred_list, label_list)
+        kt_sum += kt
+        p_value_sum += p
+        if is_misjudgment(pred_list, label_list, mid_point, num_select, num_judge):
+            mis_count += 1
+
+    logging.info(f'The misjudgement ratio: {(mis_count / test_count) * 100}%')
+    logging.info(f'Avg KT rand correlation: {kt_sum / test_count}')
+    logging.info(f'Avg P value {p_value_sum / test_count}')
 
 def is_weight_dir(filename):
     check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
@@ -124,13 +147,14 @@ def is_weight_dir(filename):
 
 
 if __name__ == '__main__':
-    '''
     for filename in os.listdir():
         if os.path.isdir(filename) and is_weight_dir(filename):
             print(f'Now test {filename}')
-            test_method(filename)
-    
+            mp_pos = filename.find('mp')
+            mid_point = int(filename[mp_pos+2: mp_pos+4])
+            test_metric(filename, mid_point)
+    '''
     for i in range(10, 91, 10):
         print(f'Now mp is {i}')
     '''
-    test_method('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)
+    #test_metric('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)

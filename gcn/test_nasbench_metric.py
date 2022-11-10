@@ -10,9 +10,10 @@ import logging
 from nasbench_model import get_weighted_mse_loss_func
 from test_nasbench import is_weight_dir
 import random
+from scipy.stats import kendalltau
 
 
-def is_misjudgment(label, predict, mid_point: int, num_select: int, num_minor: int, num_judge: int):
+def randon_select_data(predict, label, mid_point: int, num_select: int, num_minor: int, num_judge: int):
     assert num_select > num_minor
     assert num_judge <= num_select
 
@@ -23,7 +24,7 @@ def is_misjudgment(label, predict, mid_point: int, num_select: int, num_minor: i
 
     for select_type, num in zip(['major', 'minor'], [num_major, num_minor]):
         for _ in range(num):
-            rand_idx = random.randint(0, label.shape[0]-1)
+            rand_idx = random.randint(0, label.shape[0] - 1)
             if select_type == 'major':
                 while label[rand_idx] <= mid_point:
                     rand_idx = random.randint(0, label.shape[0] - 1)
@@ -34,6 +35,10 @@ def is_misjudgment(label, predict, mid_point: int, num_select: int, num_minor: i
             pred_list.append(predict[rand_idx])
             label_list.append(label[rand_idx])
 
+    return pred_list, label_list
+
+
+def is_misjudgment(pred_list, label_list, mid_point: int, num_select: int, num_judge: int):
     sorted_idx = sorted(range(len(pred_list)), key=lambda k: pred_list[k])
 
     # Return True when the minor data appears in the top num_judge data
@@ -85,23 +90,38 @@ def test_metric(weight_path, mid_point):
             label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
             pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
 
+    num_select = 100
+    num_judge = 50
+
+    pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
     test_count = 100
     mis_count = 0
+    kt_sum = 0
+    p_value_sum = 0
+
     for _ in range(test_count):
-        if is_misjudgment(pred_array, label_array, mid_point, 100, 1, 50):
+        kt, p = kendalltau(pred_list, label_list)
+        kt_sum += kt
+        p_value_sum += p
+        if is_misjudgment(pred_list, label_list, mid_point, num_select, num_judge):
             mis_count += 1
 
+
     logging.info(f'The misjudgement ratio: {(mis_count/test_count)*100}%')
+    logging.info(f'Avg KT rand correlation: {kt_sum/test_count}')
+    logging.info(f'Avg P value {p_value_sum / test_count}')
 
 
 if __name__ == '__main__':
-    '''
+
     for filename in os.listdir():
         if os.path.isdir(filename) and is_weight_dir(filename):
             print(f'Now test {filename}')
-            test_method(filename)
-    
+            mp_pos = filename.find('mp')
+            mid_point = int(filename[mp_pos+2: mp_pos+4])
+            test_metric(filename, mid_point)
+    '''
     for i in range(10, 91, 10):
         print(f'Now mp is {i}')
     '''
-    test_metric('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)
+    #test_metric('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)
