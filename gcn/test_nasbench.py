@@ -11,7 +11,7 @@ from test_nasbench_metric import *
 
 def test_method(weight_path, mid_point):
     # log_path = f'test_result/gin_conv_batch_filterTrue_mp{mid_point}_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)_test.log'
-    log_path = f'test_result/{weight_path}_test.log'
+    log_path = f'test_result/{Path(weight_path).name}_test.log'
 
     if os.path.exists(log_path):
         os.remove(log_path)

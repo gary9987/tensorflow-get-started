@@ -1,4 +1,8 @@
+import os.path
 import sys
+from argparse import ArgumentParser
+from pathlib import Path
+
 from spektral.data import BatchLoader
 from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset
@@ -10,7 +14,7 @@ from nasbench_model import GNN_Model, get_weighted_mse_loss_func
 from test_nasbench import test_method
 
 
-def train(mid_point):
+def train(mid_point, model_output_dir):
     train_epochs = 100
     model_hidden = 256
     model_activation = 'relu'
@@ -76,7 +80,7 @@ def train(mid_point):
     logging.info(f'{model.summary()}')
 
     logging.info(f'Model will save to {weight_filename}')
-    model.save(weight_filename)
+    model.save(os.path.join(model_output_dir, weight_filename))
 
     test_loader = BatchLoader(datasets['test'], batch_size=batch_size, shuffle=False, epochs=1)
     # model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=1))
@@ -97,8 +101,17 @@ def train(mid_point):
             if i[1] <= mid_point:
                 logging.info(f'{i} {j}')
 
-    test_method(weight_filename, mid_point)
+    test_method(os.path.join(model_output_dir, weight_filename), mid_point)
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--mid_point', type=int)
+    parser.add_argument('--model_output_dir', type=str)
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    train(mid_point=20)
+    args = parse_args()
+    Path(args.model_output_dir).mkdir(exist_ok=True)
+    train(mid_point=args.mid_point, model_output_dir=args.model_output_dir)
