@@ -6,7 +6,7 @@ from spektral.data import BatchLoader
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
-from nasbench_model import get_weighted_mse_loss_func
+from nasbench_model import get_weighted_mse_loss_func, is_weight_dir
 from test_nasbench_metric import *
 
 def test_method(weight_path, mid_point):
@@ -120,13 +120,13 @@ def test_method(weight_path, mid_point):
     num_select = 100
     num_judge = 50
 
-    pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
     test_count = 100
     mis_count = 0
     kt_sum = 0
     p_value_sum = 0
 
     for _ in range(test_count):
+        pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
         kt, p = kendalltau(pred_list, label_list)
         kt_sum += kt
         p_value_sum += p
@@ -137,14 +137,6 @@ def test_method(weight_path, mid_point):
     logging.info(f'Avg KT rand correlation: {kt_sum / test_count}')
     logging.info(f'Avg P value {p_value_sum / test_count}')
 
-def is_weight_dir(filename):
-    check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
-    for i in check_list:
-        if i in filename:
-            return True
-
-    return False
-
 
 if __name__ == '__main__':
     for filename in os.listdir():
@@ -152,7 +144,7 @@ if __name__ == '__main__':
             print(f'Now test {filename}')
             mp_pos = filename.find('mp')
             mid_point = int(filename[mp_pos+2: mp_pos+4])
-            test_metric(filename, mid_point)
+            test_method(filename, mid_point)
     '''
     for i in range(10, 91, 10):
         print(f'Now mp is {i}')

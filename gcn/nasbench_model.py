@@ -56,3 +56,12 @@ def get_weighted_mse_loss_func(mid_point, alpha):
         return tf.reduce_mean(scale_mse_loss, axis=-1)
 
     return weighted_mse
+
+
+def is_weight_dir(filename):
+    check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
+    for i in check_list:
+        if i in filename:
+            return True
+
+    return False

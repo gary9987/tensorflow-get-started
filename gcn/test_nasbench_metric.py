@@ -7,13 +7,12 @@ from spektral.data import BatchLoader
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
-from nasbench_model import get_weighted_mse_loss_func
-from test_nasbench import is_weight_dir
+from nasbench_model import get_weighted_mse_loss_func, is_weight_dir
 import random
 from scipy.stats import kendalltau
 
 
-def randon_select_data(predict, label, mid_point: int, num_select: int, num_minor: int, num_judge: int):
+def randon_select_data(predict, label, mid_point: int, num_select: int, num_minor: int, num_judge: int, minor_bound=None):
     assert num_select > num_minor
     assert num_judge <= num_select
 
@@ -29,7 +28,8 @@ def randon_select_data(predict, label, mid_point: int, num_select: int, num_mino
                 while label[rand_idx] <= mid_point:
                     rand_idx = random.randint(0, label.shape[0] - 1)
             elif select_type == 'minor':
-                while label[rand_idx] > mid_point:
+                bound = mid_point if minor_bound is None else minor_bound
+                while label[rand_idx] > bound:
                     rand_idx = random.randint(0, label.shape[0] - 1)
 
             pred_list.append(predict[rand_idx])
@@ -93,13 +93,14 @@ def test_metric(weight_path, mid_point):
     num_select = 100
     num_judge = 50
 
-    pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
     test_count = 100
     mis_count = 0
     kt_sum = 0
     p_value_sum = 0
 
     for _ in range(test_count):
+        pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge,
+                                                   minor_bound=50)
         kt, p = kendalltau(pred_list, label_list)
         kt_sum += kt
         p_value_sum += p
