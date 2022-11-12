@@ -8,16 +8,19 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
 from nasbench_model import GNN_Model, get_weighted_mse_loss_func
 from test_nasbench import test_method
+from argparse import ArgumentParser
+from pathlib import Path
+import os
 
 
-def train(mid_point):
+def train(mid_point, model_output_dir):
     train_epochs = 100
     model_hidden = 256
     model_activation = 'relu'
     model_dropout = 0.2
     batch_size = 128
-    weight_alpha = 5
-    repeat = 80
+    weight_alpha = 1
+    repeat = 1
     lr = 1e-3
     mid_point = mid_point
     mlp_hidden = [64, 64, 64, 64]
@@ -76,7 +79,7 @@ def train(mid_point):
     logging.info(f'{model.summary()}')
 
     logging.info(f'Model will save to {weight_filename}')
-    model.save(weight_filename)
+    model.save(os.path.join(model_output_dir, weight_filename))
 
     test_loader = BatchLoader(datasets['test'], batch_size=batch_size, shuffle=False, epochs=1)
     # model.compile('adam', loss=get_weighted_mse_loss_func(mid_point=80, alpha=1))
@@ -97,8 +100,17 @@ def train(mid_point):
             if i[1] <= mid_point:
                 logging.info(f'{i} {j}')
 
-    test_method(weight_filename, mid_point)
+    test_method(os.path.join(model_output_dir, weight_filename), mid_point)
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--mid_point', type=int)
+    parser.add_argument('--model_output_dir', type=str)
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    train(mid_point=10)
+    args = parse_args()
+    Path(args.model_output_dir).mkdir(exist_ok=True)
+    train(mid_point=args.mid_point, model_output_dir=args.model_output_dir)
