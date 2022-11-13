@@ -38,7 +38,12 @@ def train(mid_point, model_output_dir):
 
     print(weight_filename)
 
-    logging.basicConfig(filename=f'valid_log/{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
+    log_dirs = ['valid_log', 'learning_curve']
+    for i in log_dirs:
+        if not os.path.exists(i):
+            os.mkdir(i)
+
+    logging.basicConfig(filename=os.path.join(log_dirs[0], f'{weight_filename}.log'), level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -74,7 +79,7 @@ def train(mid_point, model_output_dir):
                         validation_data=valid_loader.load(), validation_steps=valid_loader.steps_per_epoch,
                         epochs=train_epochs,
                         callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
-                                   CSVLogger(f"learning_curve/{weight_filename}_history.log")])
+                                   CSVLogger(os.path.join(log_dirs[1], f"{weight_filename}_history.log"))])
 
     logging.info(f'{model.summary()}')
 
