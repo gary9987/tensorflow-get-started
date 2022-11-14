@@ -132,7 +132,7 @@ def test_method(log_dir, weight_path, mid_point):
     p_list = []
 
     for _ in range(test_count):
-        pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
+        pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge, minor_bound=50)
         kt, p = kendalltau(pred_list, label_list)
         kt_list.append(kt)
         p_list.append(p)
@@ -150,17 +150,18 @@ def test_method(log_dir, weight_path, mid_point):
 
 
 if __name__ == '__main__':
-    log_dir = 'test_upper_model_full_result'
-    model_dir = 'upper_model'
+
+    log_dir = 'test_full_model_lower50_result'
+    model_dir = 'full_model'
 
     for filename in os.listdir(model_dir):
         if os.path.isdir(os.path.join(model_dir, filename)) and is_weight_dir(os.path.join(model_dir, filename)):
             print(f'Now test {os.path.join(model_dir, filename)}')
             mp_pos = filename.find('mp')
-            mid_point = int(filename[mp_pos + 2: mp_pos + 4])
+            mid_point = int(filename[mp_pos+2: mp_pos+4])
             test_method(log_dir, os.path.join(model_dir, filename), mid_point)
     '''
     for i in range(10, 91, 10):
         print(f'Now mp is {i}')
     '''
-    #test_metric('gin_conv_batch_filterTrue_mp50_a1_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 50)
+    #test_method('full_model/gin_conv_batch_filterTrue_mp90_a1.5_r1_m256_b128_dropout0.2_lr0.001_mlp(64, 64, 64, 64)', 90)
