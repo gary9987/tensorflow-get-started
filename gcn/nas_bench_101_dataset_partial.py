@@ -25,7 +25,7 @@ logging.basicConfig(filename='nas_bench_101_dataset_partial.log', level=logging.
 
 
 class NasBench101DatasetPartial(Dataset):
-    def __init__(self, start: int, end: int, size: int, matrix_size_list: list,
+    def __init__(self, start: int, end: int, size: int, matrix_size_list: list, select_seed: int,
                  shuffle_seed=0, shuffle=True, preprocessed=False, **kwargs):
 
         self.nodes = 67
@@ -43,6 +43,7 @@ class NasBench101DatasetPartial(Dataset):
             self.file_path_prefix = 'NasBench101Dataset'
             self.file_path_suffix = 'NasBench101Dataset_'
 
+        self.select_seed = select_seed
         self.shuffle_seed = shuffle_seed
         self.shuffle = shuffle
         self.total_layers = 11
@@ -89,6 +90,7 @@ class NasBench101DatasetPartial(Dataset):
 
         count = 0
         while count < self.size:
+            random.seed(self.select_seed)
             filename = random.choice(filename_list)
             data = np.load(filename)
 
