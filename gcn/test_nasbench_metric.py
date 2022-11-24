@@ -12,9 +12,8 @@ import random
 from scipy.stats import kendalltau
 
 
-def randon_select_data(predict, label, mid_point: int, num_select: int, num_minor: int, num_judge: int, minor_bound=None):
+def randon_select_data(predict, label, mid_point: int, num_select: int, num_minor: int, minor_bound=None):
     assert num_select > num_minor
-    assert num_judge <= num_select
 
     num_major = num_select - num_minor
 
@@ -39,6 +38,7 @@ def randon_select_data(predict, label, mid_point: int, num_select: int, num_mino
 
 
 def is_misjudgment(pred_list, label_list, mid_point: int, num_select: int, num_judge: int):
+    assert num_judge <= num_select
     sorted_idx = sorted(range(len(pred_list)), key=lambda k: pred_list[k])
 
     # Return True when the minor data appears in the top num_judge data

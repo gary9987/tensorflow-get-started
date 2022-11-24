@@ -132,7 +132,7 @@ def test_method(log_dir, weight_path, mid_point):
     p_list = []
 
     for _ in range(test_count):
-        pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1, num_judge)
+        pred_list, label_list = randon_select_data(pred_array, label_array, mid_point, num_select, 1)
         kt, p = kendalltau(pred_list, label_list)
         kt_list.append(kt)
         p_list.append(p)
