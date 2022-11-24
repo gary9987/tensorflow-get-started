@@ -96,7 +96,7 @@ class NasBench101DatasetPartial(Dataset):
                 if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
                     continue
 
-            output.append(data)
+            output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
             count += 1
 
         return output
