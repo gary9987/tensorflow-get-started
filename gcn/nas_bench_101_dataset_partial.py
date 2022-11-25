@@ -89,8 +89,9 @@ class NasBench101DatasetPartial(Dataset):
             raise Exception('size is greater than filename_list')
 
         count = 0
+        random.seed(self.select_seed)
+
         while count < self.size:
-            random.seed(self.select_seed)
             filename = random.choice(filename_list)
             data = np.load(filename)
 
