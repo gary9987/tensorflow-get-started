@@ -91,15 +91,20 @@ class NasBench101DatasetPartial(Dataset):
         count = 0
         random.seed(self.select_seed)
 
+        visited = set()
         while count < self.size:
             filename = random.choice(filename_list)
-            data = np.load(filename)
+            if filename in visited:
+                continue
+
+            visited.add(filename)
+            graph_data = np.load(filename)
 
             if self.preprocessed:
-                if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
+                if np.isnan(graph_data['y'][0][0]) and np.isnan(graph_data['y'][1][0]) and np.isnan(graph_data['y'][2][0]):
                     continue
 
-            output.append(Graph(x=data['x'], e=data['e'], a=data['a'], y=data['y']))
+            output.append(Graph(x=graph_data['x'], e=graph_data['e'], a=graph_data['a'], y=graph_data['y']))
             count += 1
 
         return output

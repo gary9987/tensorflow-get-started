@@ -118,8 +118,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int):
 
         K.clear_session()
 
-    #logger = logging.getLogger('test_nasbench_partial')
-    logger = logging.getLogger(__name__ + f'_datasize{data_size}')
+    logger = logging.getLogger('test_nasbench_partial')
 
     for key in results:
         logger.info(f'{key} mean: {sum(results[key])/len(results[key])}')
@@ -138,4 +137,5 @@ if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
     #train(model_output_dir=args.model_output_dir)
-    train_n_runs(args.model_output_dir, 10, data_size=500)
+    for i in range(500, 10001, 500):
+        train_n_runs(args.model_output_dir, n=10, data_size=i)
