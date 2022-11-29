@@ -711,6 +711,28 @@ class NasBench101Dataset(Dataset):
         return output
 
 
+def train_valid_test_split_dataset(data, ratio=[0.8, 0.1, 0.1]):
+    assert sum(ratio) <= 1.
+    idxs = np.random.permutation(len(data))
+    ret = {}
+
+    if len(ratio) == 2:
+        split_va = int(ratio[0] * len(data))
+        idx_tr, idx_va = np.split(idxs, [split_va])
+        ret['train'] = data[idx_tr]
+        ret['valid'] = data[idx_va]
+    elif len(ratio) == 3:
+        split_va, split_te = int(ratio[0] * len(data)), int((ratio[0] + ratio[1]) * len(data))
+        idx_tr, idx_va, idx_te = np.split(idxs, [split_va, split_te])
+        ret['train'] = data[idx_tr]
+        ret['valid'] = data[idx_va]
+        ret['test'] = data[idx_te]
+    else:
+        raise ValueError('len(ratio) should be 2 or 3')
+
+    return ret
+
+
 if __name__ == '__main__':
     size = 5
     with open(f'./nas-bench-101-data/nasbench_101_cell_list_{size}.pkl', 'rb') as f:
