@@ -55,7 +55,7 @@ def train(model_output_dir, run: int, data_size: int):
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
 
-    datasets = train_valid_test_split_dataset(NasBench101DatasetPartial(start=0, end=155000, size=data_size, matrix_size_list=[3, 4, 5, 6, 7],
+    datasets = train_valid_test_split_dataset(NasBench101DatasetPartial(start=0, end=174800, size=data_size, matrix_size_list=[3, 4, 5, 6, 7],
                                                                         select_seed=run, preprocessed=True), ratio=[0.9, 0.1])
     datasets['test'] = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered)
 
