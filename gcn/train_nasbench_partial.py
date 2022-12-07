@@ -19,10 +19,10 @@ from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 
 def train(model_output_dir, run: int, data_size: int):
     train_epochs = 100
-    model_hidden = 64
+    model_hidden = 256
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 16
+    batch_size = 256
     weight_alpha = 1
     repeat = 1
     lr = 1e-3
@@ -102,7 +102,7 @@ def train(model_output_dir, run: int, data_size: int):
         for i, j in zip(data[1], pred):
             logging.info(f'{i} {j}')
 
-    return test_metric_partial('test_result_partial', weight_full_name)
+    return test_metric_partial('test_result_partial', weight_full_name, datasets['test'])
 
 
 def train_n_runs(model_output_dir: str, n: int, data_size: int):
@@ -137,5 +137,5 @@ if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
     #train(model_output_dir=args.model_output_dir)
-    for i in range(500, 10001, 500):
+    for i in range(170000, 170001, 5000):
         train_n_runs(args.model_output_dir, n=10, data_size=i)

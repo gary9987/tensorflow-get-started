@@ -11,7 +11,7 @@ import tensorflow as tf
 from test_nasbench_metric import randon_select_data
 
 
-def test_metric_partial(log_dir, weight_path):
+def test_metric_partial(log_dir, weight_path, test_dataset):
 
     if not os.path.exists(log_dir):
         os.mkdir(log_dir)
@@ -30,6 +30,7 @@ def test_metric_partial(log_dir, weight_path):
     #                                custom_objects={'weighted_mse': tf.keras.losses.MeanSquaredError()})
     model = keras.models.load_model(weight_path)
 
+    '''
     test_dataset = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
     print(test_dataset)
 
@@ -42,6 +43,7 @@ def test_metric_partial(log_dir, weight_path):
     if 'ecc_con' not in weight_path:
         test_dataset.apply(RemoveEdgeFeature_NasBench101())
     test_dataset.apply(SelectNoneNanData_NasBench101())
+    '''
 
     test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
     mse = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
@@ -91,8 +93,18 @@ if __name__ == '__main__':
     log_dir = 'test_partial_model'
     model_dir = 'partial_model'
 
+    test_dataset = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
+    test_dataset.apply(NormalizeParAndFlop_NasBench101())
+    test_dataset.apply(RemoveTrainingTime_NasBench101())
+    test_dataset.apply(Normalize_x_10to15_NasBench101())
+    test_dataset.apply(NormalizeLayer_NasBench101())
+    test_dataset.apply(LabelScale_NasBench101())
+    test_dataset.apply(NormalizeEdgeFeature_NasBench101())
+    test_dataset.apply(RemoveEdgeFeature_NasBench101())
+    test_dataset.apply(SelectNoneNanData_NasBench101())
+
     for filename in os.listdir():
         if os.path.isdir(filename) and is_weight_dir(filename):
             print(f'Now test {filename}')
-            test_metric_partial(log_dir, filename)
+            test_metric_partial(log_dir, filename, test_dataset)
 
