@@ -12,6 +12,36 @@ import random
 from scipy.stats import kendalltau
 
 
+def mAP(predict, label, n: float):
+    assert 0. <= n <= 1.
+    topn = int(n * len(predict))
+    sorted_pred = sorted(predict, reverse=True)
+    pred_order = [sorted_pred.index(i) for i in predict]
+
+    sorted_label = sorted(label, reverse=True)
+    label_order = [sorted_label.index(i) for i in label]
+
+    pred_binary = []
+    for i in range(len(predict)):
+        if pred_order[i] < topn and label_order[i] < topn:
+            pred_binary.append(1)
+        else:
+            pred_binary.append(0)
+
+    argsort_pred = (-1 * np.array(predict)).argsort()
+    sorted_pred_binary = [pred_binary[i] for i in argsort_pred]
+    sorted_pred_binary = sorted_pred_binary[: topn]
+
+    precision_sum = 0.
+    correct_cot = 1
+    for i in range(topn):
+        if sorted_pred_binary[i] == 1:
+            precision_sum += (correct_cot / (i+1))
+            correct_cot += 1
+
+    return precision_sum / (correct_cot - 1) if correct_cot != 1 else 0.0
+
+
 def randon_select_data(predict, label, mid_point: int, num_select: int, num_minor: int, minor_bound=None):
     assert num_select > num_minor
 
