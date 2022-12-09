@@ -1,10 +1,8 @@
 import os.path
-import pathlib
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
 from keras import backend as K
-import numpy as np
 from spektral.data import BatchLoader
 from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
@@ -22,7 +20,7 @@ def train(model_output_dir, run: int, data_size: int):
     model_hidden = 64
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 256
+    batch_size = 16
     weight_alpha = 1
     repeat = 1
     lr = 1e-3
@@ -60,14 +58,11 @@ def train(model_output_dir, run: int, data_size: int):
     datasets['test'] = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered)
 
     for key in datasets:
-        datasets[key].apply(NormalizeParAndFlop_NasBench101())
         datasets[key].apply(RemoveTrainingTime_NasBench101())
         datasets[key].apply(Normalize_x_10to15_NasBench101())
-        datasets[key].apply(NormalizeLayer_NasBench101())
         datasets[key].apply(LabelScale_NasBench101())
-        datasets[key].apply(NormalizeEdgeFeature_NasBench101())
-        if 'ecc_con' not in weight_filename:
-            datasets[key].apply(RemoveEdgeFeature_NasBench101())
+        datasets[key].apply(RemoveEdgeFeature_NasBench101())
+        datasets[key].apply(RemoveMetaData())
         datasets[key].apply(SelectNoneNanData_NasBench101())
         logging.info(f'key {datasets[key]}')
 
@@ -102,11 +97,11 @@ def train(model_output_dir, run: int, data_size: int):
         for i, j in zip(data[1], pred):
             logging.info(f'{i} {j}')
 
-    return test_metric_partial('test_result_partial', weight_full_name, datasets['test'])
+    return test_metric_partial('test_nasbench_partial_nometa', weight_full_name, datasets['test'])
 
 
 def train_n_runs(model_output_dir: str, n: int, data_size: int):
-    metrics = ['MSE', 'MAE', 'KT', 'P']
+    metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
     for i in range(n):
@@ -118,7 +113,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int):
 
         K.clear_session()
 
-    logger = logging.getLogger('test_nasbench_partial')
+    logger = logging.getLogger('test_nasbench_partial_nometa')
 
     for key in results:
         logger.info(f'{key} mean: {sum(results[key])/len(results[key])}')
@@ -129,7 +124,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int):
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--model_output_dir', type=str, default='partial_model')
+    parser.add_argument('--model_output_dir', type=str, default='partial_model_nometa')
     return parser.parse_args()
 
 
@@ -137,5 +132,5 @@ if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
     #train(model_output_dir=args.model_output_dir)
-    for i in range(170000, 170001, 5000):
+    for i in range(500, 10501, 500):
         train_n_runs(args.model_output_dir, n=10, data_size=i)

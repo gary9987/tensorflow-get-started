@@ -97,6 +97,14 @@ class RemoveTrainingTime_NasBench101:
         return graph
 
 
+class RemoveMetaData:
+    def __call__(self, graph):
+        if graph.x is not None:
+            graph.x = np.delete(graph.x, [7, 8, 9, 10, 11, 13, 14], 1)
+
+        return graph
+
+
 class NormalizeLayer_NasBench101:
     def __call__(self, graph):
         if graph.x is not None:
