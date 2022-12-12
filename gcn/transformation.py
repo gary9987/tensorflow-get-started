@@ -104,6 +104,12 @@ class RemoveMetaData:
 
         return graph
 
+class RemoveAllMetaData:
+    def __call__(self, graph):
+        if graph.x is not None:
+            graph.x = np.delete(graph.x, list(range(7, 16)), 1)
+
+        return graph
 
 class NormalizeLayer_NasBench101:
     def __call__(self, graph):

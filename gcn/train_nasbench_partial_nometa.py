@@ -15,7 +15,7 @@ from test_nasbench_partial import test_metric_partial
 from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 
 
-def train(model_output_dir, run: int, data_size: int):
+def train(model_output_dir, run: int, data_size: int, no_channel=False):
     train_epochs = 100
     model_hidden = 64
     model_activation = 'relu'
@@ -62,7 +62,10 @@ def train(model_output_dir, run: int, data_size: int):
         datasets[key].apply(Normalize_x_10to15_NasBench101())
         datasets[key].apply(LabelScale_NasBench101())
         datasets[key].apply(RemoveEdgeFeature_NasBench101())
-        datasets[key].apply(RemoveMetaData())
+        if no_channel:
+            datasets[key].apply(RemoveAllMetaData())
+        else:
+            datasets[key].apply(RemoveMetaData())
         datasets[key].apply(SelectNoneNanData_NasBench101())
         logging.info(f'key {datasets[key]}')
 
@@ -97,23 +100,23 @@ def train(model_output_dir, run: int, data_size: int):
         for i, j in zip(data[1], pred):
             logging.info(f'{i} {j}')
 
-    return test_metric_partial('test_nasbench_partial_nometa', weight_full_name, datasets['test'])
+    return test_metric_partial('test_nasbench_partial_nochannel', weight_full_name, datasets['test'])
 
 
-def train_n_runs(model_output_dir: str, n: int, data_size: int):
+def train_n_runs(model_output_dir: str, n: int, data_size: int, no_channel=False):
     metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
     for i in range(n):
         # {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p}
-        metrics = train(model_output_dir, i, data_size)
+        metrics = train(model_output_dir, i, data_size, no_channel=no_channel)
         print(metrics)
         for m in metrics:
             results[m].append(metrics[m])
 
         K.clear_session()
 
-    logger = logging.getLogger('test_nasbench_partial_nometa')
+    logger = logging.getLogger('test_nasbench_partial')
 
     for key in results:
         logger.info(f'{key} mean: {sum(results[key])/len(results[key])}')
@@ -124,7 +127,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int):
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--model_output_dir', type=str, default='partial_model_nometa')
+    parser.add_argument('--model_output_dir', type=str, default='partial_model_nochannel')
     return parser.parse_args()
 
 
@@ -133,4 +136,4 @@ if __name__ == '__main__':
     Path(args.model_output_dir).mkdir(exist_ok=True)
     #train(model_output_dir=args.model_output_dir)
     for i in range(500, 10501, 500):
-        train_n_runs(args.model_output_dir, n=10, data_size=i)
+        train_n_runs(args.model_output_dir, n=10, data_size=i, no_channel=True)
