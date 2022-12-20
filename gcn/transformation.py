@@ -156,3 +156,13 @@ class RemoveEdgeFeature_NasBench101:
     def __call__(self, graph):
         ret = Graph(x=graph.x, a=graph.a, y=graph.y)
         return ret
+
+
+class Flatten4Ensemble_NasBench101:
+    def __call__(self, graph):
+        if graph.a is not None:
+            graph.a = graph.a.reshape((1, graph.a.shape[0] * graph.a.shape[1]))
+            if graph.x is not None:
+                graph.a = np.concatenate((graph.a, graph.x.reshape((1, graph.x.shape[0] * graph.x.shape[1]))), axis=1)
+
+        return graph
