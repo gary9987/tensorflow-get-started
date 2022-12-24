@@ -1,14 +1,9 @@
 import os.path
 from pathlib import Path
-import keras.models
-import numpy as np
-from spektral.data import BatchLoader
 from nas_bench_101_dataset import NasBench101Dataset
 from transformation import *
 import logging
-from nasbench_model import is_weight_dir
 from scipy.stats import kendalltau
-import tensorflow as tf
 from test_nasbench_metric import randon_select_data, mAP
 from sklearn.metrics import ndcg_score, mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
@@ -41,14 +36,11 @@ def test_metric_partial_ensemble(log_dir, weight_path, test_dataset):
     label_array = np.array([])
     pred_array = np.array([])
 
-    test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-    for data in test_loader:
-        pred = model.predict(data[0])
-        for i, j in zip(data[1], pred):
-            # logging.info(f'{i} {j}')
-            valid_label, valid_predict = i[1], j[1]
-            label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
-            pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
+    for i, j in zip(test_dataset['y'], pred):
+        # logging.info(f'{i} {j}')
+        valid_label, valid_predict = i[1], j[1]
+        label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
+        pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
 
     num_select = 100
     test_count = 1000
@@ -81,18 +73,15 @@ def test_metric_partial_ensemble(log_dir, weight_path, test_dataset):
     return {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p, 'mAP': avg_mAP, 'NDCG': ndcg}
 
 if __name__ == '__main__':
-    log_dir = 'test_result_partial'
-    model_dir = 'partial_model'
+    log_dir = 'test_result_xgb'
+    model_dir = 'ensemble_model'
 
     test_dataset = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
-    test_dataset.apply(NormalizeParAndFlop_NasBench101())
     test_dataset.apply(RemoveTrainingTime_NasBench101())
-    test_dataset.apply(Normalize_x_10to15_NasBench101())
-    test_dataset.apply(NormalizeLayer_NasBench101())
     test_dataset.apply(LabelScale_NasBench101())
-    test_dataset.apply(NormalizeEdgeFeature_NasBench101())
     test_dataset.apply(RemoveEdgeFeature_NasBench101())
     test_dataset.apply(SelectNoneNanData_NasBench101())
+    test_dataset.apply(Flatten4Ensemble_NasBench101())
 
     for model_folder in os.listdir(model_dir):
         metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']

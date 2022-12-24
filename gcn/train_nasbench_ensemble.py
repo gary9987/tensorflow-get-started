@@ -7,7 +7,7 @@ from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
 from transformation import *
 import logging
-from test_nasbench_partial import test_metric_partial
+from test_nasbench_ensemble import test_metric_partial_ensemble
 from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error
@@ -85,11 +85,10 @@ def train(model_output_dir, run: int, data_size: int):
     for y, predict in zip(datasets['test']['y'], pred):
         logging.info(f'{y} {predict}')
 
-    return test_metric_partial('test_nasbench_partial_nochannel', weight_full_name, datasets['test'])
+    return test_metric_partial_ensemble(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'])
 
 
-
-def train_n_runs(model_output_dir: str, n: int, data_size: int, no_channel=False):
+def train_n_runs(model_output_dir: str, n: int, data_size: int):
     metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
@@ -102,7 +101,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int, no_channel=False
 
         K.clear_session()
 
-    logger = logging.getLogger('test_nasbench_partial')
+    logger = logging.getLogger('test_nasbench_ensemble')
 
     for key in results:
         logger.info(f'{key} mean: {sum(results[key])/len(results[key])}')
@@ -120,6 +119,6 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
-    train(args.model_output_dir, 0, 1000)
-    #for i in range(500, 10501, 500):
-    #    train_n_runs(args.model_output_dir, n=10, data_size=i, no_channel=True)
+    #train(args.model_output_dir, 0, 1000)
+    for i in range(500, 10501, 500):
+        train_n_runs(args.model_output_dir, n=10, data_size=i)
