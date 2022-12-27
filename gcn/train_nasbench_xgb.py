@@ -77,7 +77,7 @@ def train(model_output_dir, run: int, data_size: int):
 
     for key, graphs in datasets.items():
         x_list = [np.squeeze(graph.a) for graph in graphs]
-        y_list = [np.squeeze(graph.y) for graph in graphs]
+        y_list = [np.squeeze(graph.y[1]) for graph in graphs]
         datasets[key] = {'x': np.array(x_list), 'y': np.array(y_list)}
 
     model.fit(X=datasets['train']['x'], y=datasets['train']['y'], eval_set=[(datasets['valid']['x'], datasets['valid']['y'])])
