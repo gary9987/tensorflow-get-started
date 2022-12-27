@@ -85,7 +85,7 @@ def train(model_output_dir, run: int, data_size: int):
     for y, predict in zip(datasets['test']['y'], pred):
         logging.info(f'{y} {predict}')
 
-    return test_metric_partial_ensemble(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'])
+    return test_metric_partial_ensemble(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'], model)
 
 
 def train_n_runs(model_output_dir: str, n: int, data_size: int):
@@ -120,5 +120,5 @@ if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
     #train(args.model_output_dir, 0, 1000)
-    for i in range(500, 10501, 500):
+    for i in range(25500, 170501, 5000):
         train_n_runs(args.model_output_dir, n=10, data_size=i)

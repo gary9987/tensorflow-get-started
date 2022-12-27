@@ -7,9 +7,10 @@ from scipy.stats import kendalltau
 from test_nasbench_metric import randon_select_data, mAP
 from sklearn.metrics import ndcg_score, mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
+import lightgbm
 
 
-def test_metric_partial_ensemble(log_dir, weight_path, test_dataset):
+def test_metric_partial_ensemble(log_dir, weight_path, test_dataset, model):
 
     if not os.path.exists(log_dir):
         Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -21,8 +22,8 @@ def test_metric_partial_ensemble(log_dir, weight_path, test_dataset):
 
     logging.basicConfig(filename=log_path, level=logging.INFO, force=True)
 
-    model = XGBRegressor()
-    model.load_model(weight_path)
+    #model = XGBRegressor()
+    #model.load_model(weight_path)
 
     pred = model.predict(test_dataset['x'])
     mse = np.sqrt(mean_squared_error(test_dataset['y'], pred))
@@ -38,7 +39,10 @@ def test_metric_partial_ensemble(log_dir, weight_path, test_dataset):
 
     for i, j in zip(test_dataset['y'], pred):
         # logging.info(f'{i} {j}')
-        valid_label, valid_predict = i[1], j[1]
+        if type(model) == lightgbm.sklearn.LGBMRegressor:
+            valid_label, valid_predict = i, j
+        else:
+            valid_label, valid_predict = i[1], j[1]
         label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
         pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
 
@@ -71,6 +75,7 @@ def test_metric_partial_ensemble(log_dir, weight_path, test_dataset):
     logging.info(f'Std ndcg value: {np.std(ndcg_list)}')
 
     return {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p, 'mAP': avg_mAP, 'NDCG': ndcg}
+
 
 if __name__ == '__main__':
     log_dir = 'test_result_xgb'
