@@ -13,6 +13,14 @@ from xgboost import XGBRegressor
 from sklearn.metrics import mean_squared_error
 
 
+dataset_test = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
+dataset_test.apply(RemoveTrainingTime_NasBench101())
+dataset_test.apply(LabelScale_NasBench101())
+dataset_test.apply(RemoveEdgeFeature_NasBench101())
+dataset_test.apply(RemoveAllMetaData())
+dataset_test.apply(SelectNoneNanData_NasBench101())
+dataset_test.apply(Flatten4Ensemble_NasBench101())
+
 def train(model_output_dir, run: int, data_size: int):
     hp = {
         'n_estimators': 20000,
@@ -55,10 +63,10 @@ def train(model_output_dir, run: int, data_size: int):
 
     datasets = train_valid_test_split_dataset(NasBench101DatasetPartial(start=0, end=174800, size=data_size, matrix_size_list=[3, 4, 5, 6, 7],
                                                                         select_seed=run, preprocessed=is_filtered), ratio=[0.9, 0.1])
-    datasets['test'] = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered)
+    datasets['test'] = dataset_test
     # 194617
 
-    for key in datasets:
+    for key in ['train', 'valid']:
         datasets[key].apply(RemoveTrainingTime_NasBench101())
         datasets[key].apply(LabelScale_NasBench101())
         datasets[key].apply(RemoveEdgeFeature_NasBench101())
