@@ -16,14 +16,12 @@ from sklearn.metrics import ndcg_score
 def test_metric_partial(log_dir, weight_path, test_dataset):
 
     if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+
     log_path = os.path.join(log_dir, f'{Path(weight_path).name}_test.log')
 
     if os.path.exists(log_path):
         os.remove(log_path)
-
-    if not os.path.exists(Path(log_path).parents[0]):
-        Path(log_path).parents[0].mkdir()
 
     logging.basicConfig(filename=log_path, level=logging.INFO, force=True)
     batch_size = 64
@@ -50,9 +48,8 @@ def test_metric_partial(log_dir, weight_path, test_dataset):
     test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
     for data in test_loader:
         pred = model.predict(data[0])
-        for i, j in zip(data[1], pred):
+        for valid_label, valid_predict in zip(data[1], pred):
             # logging.info(f'{i} {j}')
-            valid_label, valid_predict = i[1], j[1]
             label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
             pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
 

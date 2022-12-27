@@ -104,6 +104,15 @@ class RemoveMetaData:
 
         return graph
 
+
+class Y_OnlyValidAcc:
+    def __call__(self, graph):
+        if graph.y is not None:
+            graph.y = np.delete(graph.y, [0, 2])
+
+        return graph
+
+
 class RemoveAllMetaData:
     def __call__(self, graph):
         if graph.x is not None:

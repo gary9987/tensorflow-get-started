@@ -2,7 +2,6 @@ import os.path
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from keras import backend as K
 from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
 from transformation import *
@@ -107,8 +106,6 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int):
         for m in metrics:
             results[m].append(metrics[m])
 
-        K.clear_session()
-
     logger = logging.getLogger('test_nasbench_ensemble')
 
     for key in results:
@@ -128,5 +125,11 @@ if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
     #train(args.model_output_dir, 0, 1000)
-    for i in range(25500, 170501, 5000):
-        train_n_runs(args.model_output_dir, n=10, data_size=i)
+    range_list = [
+        [500, 10501, 500],
+        [11500, 20501, 1000],
+        [25500, 170501, 5000]
+    ]
+    for r in range_list:
+        for i in range(r[0], r[1], r[2]):
+            train_n_runs(args.model_output_dir, n=10, data_size=i)

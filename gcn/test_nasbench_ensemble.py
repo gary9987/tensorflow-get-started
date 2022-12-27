@@ -37,12 +37,8 @@ def test_metric_partial_ensemble(log_dir, weight_path, test_dataset, model):
     label_array = np.array([])
     pred_array = np.array([])
 
-    for i, j in zip(test_dataset['y'], pred):
+    for valid_label, valid_predict in zip(test_dataset['y'], pred):
         # logging.info(f'{i} {j}')
-        if type(model) == lightgbm.sklearn.LGBMRegressor:
-            valid_label, valid_predict = i, j
-        else:
-            valid_label, valid_predict = i[1], j[1]
         label_array = np.concatenate((label_array, np.array(valid_label)), axis=None)
         pred_array = np.concatenate((pred_array, np.array(valid_predict)), axis=None)
 

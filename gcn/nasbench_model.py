@@ -17,7 +17,7 @@ class GNN_Model(Model):
         self.bn = tensorflow.keras.layers.BatchNormalization()
         self.pool = GlobalMaxPool()
         self.dropout = tensorflow.keras.layers.Dropout(dropout)
-        self.dense = Dense(3)  # train_acc, valid_acc, test_acc
+        self.dense = Dense(1)  # valid_acc
 
     def call(self, inputs):
         out = self.graph_conv(inputs)

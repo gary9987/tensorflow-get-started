@@ -2,7 +2,6 @@ import os.path
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from keras import backend as K
 from spektral.data import BatchLoader
 from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
@@ -15,7 +14,21 @@ from test_nasbench_partial import test_metric_partial
 from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 
 
-def train(model_output_dir, run: int, data_size: int, no_channel=False):
+no_channel = True
+dataset_test = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
+dataset_test.apply(RemoveTrainingTime_NasBench101())
+dataset_test.apply(Normalize_x_10to15_NasBench101())
+dataset_test.apply(LabelScale_NasBench101())
+dataset_test.apply(RemoveEdgeFeature_NasBench101())
+if no_channel:
+    dataset_test.apply(RemoveAllMetaData())
+else:
+    dataset_test.apply(RemoveMetaData())
+dataset_test.apply(SelectNoneNanData_NasBench101())
+dataset_test.apply(Y_OnlyValidAcc())
+
+
+def train(model_output_dir, run: int, data_size: int):
     train_epochs = 100
     model_hidden = 64
     model_activation = 'relu'
@@ -43,10 +56,11 @@ def train(model_output_dir, run: int, data_size: int, no_channel=False):
 
     print(weight_full_name)
 
-    if not os.path.exists('valid_log'):
-        os.mkdir('valid_log')
+    log_dir = f'{model_output_dir}_log'
+    if not os.path.exists(os.path.join(log_dir, 'valid_log')):
+        Path(os.path.join(log_dir, 'valid_log')).mkdir(parents=True, exist_ok=True)
 
-    logging.basicConfig(filename=f'valid_log/{weight_filename}.log', level=logging.INFO, force=True, filemode='w')
+    logging.basicConfig(filename=os.path.join(log_dir, 'valid_log', f'{weight_filename}.log'), level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -55,9 +69,9 @@ def train(model_output_dir, run: int, data_size: int, no_channel=False):
 
     datasets = train_valid_test_split_dataset(NasBench101DatasetPartial(start=0, end=174800, size=data_size, matrix_size_list=[3, 4, 5, 6, 7],
                                                                         select_seed=run, preprocessed=True), ratio=[0.9, 0.1])
-    datasets['test'] = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=is_filtered)
+    datasets['test'] = dataset_test
 
-    for key in datasets:
+    for key in ['train', 'valid']:
         datasets[key].apply(RemoveTrainingTime_NasBench101())
         datasets[key].apply(Normalize_x_10to15_NasBench101())
         datasets[key].apply(LabelScale_NasBench101())
@@ -67,6 +81,7 @@ def train(model_output_dir, run: int, data_size: int, no_channel=False):
         else:
             datasets[key].apply(RemoveMetaData())
         datasets[key].apply(SelectNoneNanData_NasBench101())
+        datasets[key].apply(Y_OnlyValidAcc())
         logging.info(f'key {datasets[key]}')
 
 
@@ -100,21 +115,21 @@ def train(model_output_dir, run: int, data_size: int, no_channel=False):
         for i, j in zip(data[1], pred):
             logging.info(f'{i} {j}')
 
-    return test_metric_partial('test_nasbench_partial_nochannel', weight_full_name, datasets['test'])
+    return test_metric_partial(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'])
 
 
-def train_n_runs(model_output_dir: str, n: int, data_size: int, no_channel=False):
+def train_n_runs(model_output_dir: str, n: int, data_size: int):
     metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
     for i in range(n):
         # {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p}
-        metrics = train(model_output_dir, i, data_size, no_channel=no_channel)
+        metrics = train(model_output_dir, i, data_size)
         print(metrics)
         for m in metrics:
             results[m].append(metrics[m])
 
-        K.clear_session()
+        tf.keras.backend.clear_session()
 
     logger = logging.getLogger('test_nasbench_partial')
 
@@ -134,6 +149,12 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
+    range_list = [
+        [500, 10501, 500],
+        [11500, 20501, 1000],
+        [25500, 170501, 5000]
+    ]
     #train(model_output_dir=args.model_output_dir)
-    for i in range(500, 10501, 500):
-        train_n_runs(args.model_output_dir, n=10, data_size=i, no_channel=True)
+    for r in range_list:
+        for i in range(r[0], r[1], r[2]):
+            train_n_runs(args.model_output_dir, n=10, data_size=i)
