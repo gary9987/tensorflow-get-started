@@ -15,7 +15,7 @@ import pickle
 from sklearn.metrics import mean_squared_error
 
 #194617
-dataset_test = NasBench101Dataset(start=174801, end=174810, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
+dataset_test = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
 dataset_test.apply(RemoveTrainingTime_NasBench101())
 dataset_test.apply(LabelScale_NasBench101())
 dataset_test.apply(RemoveEdgeFeature_NasBench101())
