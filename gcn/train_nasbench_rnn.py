@@ -84,7 +84,7 @@ def get_LSTM_model(units: int, shape: Tuple[int, int]):
     return model
 
 
-def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int):
+def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int, rm_all_metadata: bool):
     units = 128
     is_filtered = True
     lr = 0.001
@@ -125,6 +125,8 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
         datasets[key].apply(LabelScale_NasBench101())
         datasets[key].apply(SelectNoneNanData_NasBench101())
         datasets[key].apply(Y_OnlyValidAcc())
+        if rm_all_metadata:
+            datasets[key].apply(RemoveAllMetaData())
         logging.info(f'key {datasets[key]}')
         datasets[key] = get_dataset(datasets[key])
 
@@ -151,13 +153,13 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
     return test_metric_rnn(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'], model)
 
 
-def train_n_runs(model_output_dir: str, n: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int):
+def train_n_runs(model_output_dir: str, n: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int, rm_all_metadata: bool):
     metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
     for i in range(n):
         # {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p}
-        metrics = train(model_output_dir, i, data_size, test_dataset, batch_size)
+        metrics = train(model_output_dir, i, data_size, test_dataset, batch_size, rm_all_metadata)
         print(metrics)
         for m in metrics:
             results[m].append(metrics[m])
@@ -177,6 +179,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--model_output_dir', type=str, default='lstm_model')
     parser.add_argument('--select_range_list', type=int, nargs='+', default=[0, 1, 2])
+    parser.add_argument('--rm_all_metadata', action='store_true')
     return parser.parse_args()
 
 
@@ -193,6 +196,8 @@ if __name__ == '__main__':
     test_dataset.apply(LabelScale_NasBench101())
     test_dataset.apply(SelectNoneNanData_NasBench101())
     test_dataset.apply(Y_OnlyValidAcc())
+    if args.rm_all_metadata:
+        test_dataset.apply(RemoveAllMetaData())
     test_dataset = get_dataset(test_dataset)
 
     range_list = [
@@ -203,5 +208,5 @@ if __name__ == '__main__':
     range_list = [range_list[i] for i in args.select_range_list]
     for r in range_list:
         for i in range(r[0], r[1], r[2]):
-            train_n_runs(args.model_output_dir, n=10, data_size=i, test_dataset=test_dataset, batch_size=r[3])
+            train_n_runs(args.model_output_dir, n=10, data_size=i, test_dataset=test_dataset, batch_size=r[3], rm_all_metadata=args.rm_all_metadata)
 
