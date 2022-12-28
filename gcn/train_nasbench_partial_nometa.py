@@ -2,6 +2,8 @@ import os.path
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import List
+
 from spektral.data import BatchLoader
 from tensorflow.python.keras.callbacks import CSVLogger
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
@@ -28,12 +30,11 @@ dataset_test.apply(SelectNoneNanData_NasBench101())
 dataset_test.apply(Y_OnlyValidAcc())
 
 
-def train(model_output_dir, run: int, data_size: int):
+def train(model_output_dir, run: int, data_size: int, batch_size: int):
     train_epochs = 100
     model_hidden = 64
     model_activation = 'relu'
     model_dropout = 0.2
-    batch_size = 16
     weight_alpha = 1
     repeat = 1
     lr = 1e-3
@@ -118,13 +119,13 @@ def train(model_output_dir, run: int, data_size: int):
     return test_metric_partial(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'])
 
 
-def train_n_runs(model_output_dir: str, n: int, data_size: int):
+def train_n_runs(model_output_dir: str, n: int, data_size: int, batch_size: int):
     metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
     for i in range(n):
         # {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p}
-        metrics = train(model_output_dir, i, data_size)
+        metrics = train(model_output_dir, i, data_size, batch_size)
         print(metrics)
         for m in metrics:
             results[m].append(metrics[m])
@@ -143,6 +144,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--model_output_dir', type=str, default='partial_model_nochannel')
+    parser.add_argument('--select_range_list', type=int, nargs='+', default=[0])
     return parser.parse_args()
 
 
@@ -150,11 +152,12 @@ if __name__ == '__main__':
     args = parse_args()
     Path(args.model_output_dir).mkdir(exist_ok=True)
     range_list = [
-        [500, 10501, 500],
-        [11500, 20501, 1000],
-        [25500, 170501, 5000]
+        [500, 10501, 500, 16],
+        [11500, 20501, 1000, 256],
+        [25500, 170501, 5000, 256]
     ]
+    range_list = [range_list[i] for i in args.select_range_list]
     #train(model_output_dir=args.model_output_dir)
     for r in range_list:
         for i in range(r[0], r[1], r[2]):
-            train_n_runs(args.model_output_dir, n=10, data_size=i)
+            train_n_runs(args.model_output_dir, n=10, data_size=i, batch_size=r[3])

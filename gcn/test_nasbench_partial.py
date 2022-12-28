@@ -24,7 +24,7 @@ def test_metric_partial(log_dir, weight_path, test_dataset):
         os.remove(log_path)
 
     logging.basicConfig(filename=log_path, level=logging.INFO, force=True)
-    batch_size = 64
+    batch_size = 256
 
     model = keras.models.load_model(weight_path,
                                     custom_objects={'weighted_mse': tf.keras.losses.MeanSquaredError()})

@@ -101,7 +101,7 @@ class NasBench101DatasetPartial(Dataset):
             graph_data = np.load(filename)
 
             if self.preprocessed:
-                if np.isnan(graph_data['y'][0][0]) and np.isnan(graph_data['y'][1][0]) and np.isnan(graph_data['y'][2][0]):
+                if all([np.isnan(graph_data['y'][i][0]) for i in range(3)]):
                     continue
 
             output.append(Graph(x=graph_data['x'], e=graph_data['e'], a=graph_data['a'], y=graph_data['y']))

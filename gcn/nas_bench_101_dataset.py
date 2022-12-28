@@ -681,7 +681,7 @@ class NasBench101Dataset(Dataset):
             data = np.load(filename_list[i])
 
             if self.preprocessed:
-                if np.isnan(data['y'][0][0]) and np.isnan(data['y'][1][0]) and np.isnan(data['y'][2][0]):
+                if all([np.isnan(data['y'][i][0]) for i in range(3)]):
                     continue
 
             highest_valid_acc = find_highest_valid_data(data['y'])
