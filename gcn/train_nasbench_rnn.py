@@ -10,7 +10,7 @@ from spektral.data import Dataset
 from tensorflow.keras import layers
 from typing import Tuple, Dict
 from tensorflow.python.keras.callbacks import CSVLogger, EarlyStopping
-from gcn.nas_bench_101_dataset_partial import NasBench101DatasetPartial
+from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
 from transformation import *
 from sklearn.metrics import mean_squared_error
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     Path(args.model_output_dir).mkdir(exist_ok=True)
 
     # 194617
-    test_dataset = NasBench101Dataset(start=174801, end=174810, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
+    test_dataset = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
     test_dataset.apply(NormalizeParAndFlop_NasBench101())
     test_dataset.apply(RemoveTrainingTime_NasBench101())
     test_dataset.apply(Normalize_x_10to15_NasBench101())
