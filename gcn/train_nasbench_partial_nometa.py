@@ -58,10 +58,12 @@ def train(model_output_dir, run: int, data_size: int, batch_size: int):
     print(weight_full_name)
 
     log_dir = f'{model_output_dir}_log'
-    if not os.path.exists(os.path.join(log_dir, 'valid_log')):
-        Path(os.path.join(log_dir, 'valid_log')).mkdir(parents=True, exist_ok=True)
+    log_dirs = ['valid_log', 'learning_curve']
+    for i in log_dirs:
+        if not os.path.exists(os.path.join(log_dir, i)):
+            Path(os.path.join(log_dir, i)).mkdir(parents=True, exist_ok=True)
 
-    logging.basicConfig(filename=os.path.join(log_dir, 'valid_log', f'{weight_filename}.log'), level=logging.INFO, force=True, filemode='w')
+    logging.basicConfig(filename=os.path.join(log_dir, log_dirs[0], f'{weight_filename}.log'), level=logging.INFO, force=True, filemode='w')
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -98,7 +100,7 @@ def train(model_output_dir, run: int, data_size: int, batch_size: int):
                         validation_data=valid_loader.load(), validation_steps=valid_loader.steps_per_epoch,
                         epochs=train_epochs,
                         callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
-                                   CSVLogger(f"learning_curve/{weight_filename}_history.log")])
+                                   CSVLogger(os.path.join(log_dir, log_dirs[1], f'{weight_filename}_history.log'))])
 
     logging.info(f'{model.summary()}')
 
