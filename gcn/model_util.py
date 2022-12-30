@@ -1,15 +1,23 @@
 import pickle
+from typing import Tuple, Union
+
 import tensorflow as tf
 import random
 import numpy as np
-from model_builder import build_arch_model
+from model_builder import build_arch_model, build_arch_model_original
 from model_spec import ModelSpec
 from os import path
 import os
 
 
+def get_model_by_spec(spec: ModelSpec, inputs_shape: tuple):
+    model = build_arch_model_original(spec, inputs_shape)
+    model.build([*inputs_shape])
+    return model
+
+
 def get_model_by_spec_and_layer(spec: ModelSpec, layer: int, inputs_shape: tuple):
-    model = build_arch_model(spec, inputs_shape)
+    model = build_arch_model_original(spec, inputs_shape)
     model = tf.keras.models.Sequential(model.layers[:layer + 1])
     model.build([*inputs_shape])
     return model
@@ -68,16 +76,22 @@ def copy_model_weight(dst, src):
 
 def predict_to_bin_str_batch(model: tf.keras.Model, inputs: tf.Tensor) -> list:
     # Clone a new model and set weights by original model weights
-    private_model = tf.keras.models.clone_model(model)
-    private_model.set_weights(model.get_weights())
+    # private_model = tf.keras.models.clone_model(model)
+    # private_model.set_weights(model.get_weights())
     # The function of added layer is equal to f(x) = (1 if x > 0 else 0)
-    private_model.add(tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0))))
-    model_outs = list(tf.reshape(private_model.predict(inputs), (inputs.shape[0], -1)).numpy().astype(int))
-    binstr_list = [''.join(str(e) for e in out) for out in model_outs]
-    return binstr_list
+    # private_model.add(tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0))))
+    # model_outs = list(tf.reshape(private_model.predict(inputs), (inputs.shape[0], -1)).numpy().astype(int))
+    pred = model.predict(inputs)
+    if model.layers[-1]._name.startswith('cell_model'):
+        model_outs = model.layers[-1].intermediate_out.numpy().astype(int)
+    else:
+        pred = tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0)))(pred)
+        model_outs = np.reshape(pred, (inputs.shape[0], -1)).astype(int)
+
+    return [''.join(str(e) for e in out) for out in model_outs]
 
 
-def hamming_distance(str1: str, str2: str) -> int:
+def hamming_distance(str1: str, str2: str) -> Tuple[int, int]:
     hamming_list = list(map(lambda x, y: x != y, str1, str2))
     return sum(hamming_list), len(str1)
 
@@ -94,8 +108,12 @@ def hamming_distance(str1: str, str2: str) -> int:
 # Matrix = [[H(D1,D1), H(D1, D2)],
 #           [[H(D2,D1), H(D2, D2)]]
 # 之後算 det(Matrix)
+'''
 def calculate_dataset_level(cell_filename: str, shuffle_seed: int, inputs_shape: tuple, model_id: int,
                             data_samples: tf.Tensor):
+    """
+    This function is deprecated.
+    """
 
     binstr_list = [""] * data_samples.shape[0]
 
@@ -103,6 +121,30 @@ def calculate_dataset_level(cell_filename: str, shuffle_seed: int, inputs_shape:
 
     for i in range(len(ori_model.layers)):
         sub_model = get_model_by_id_and_layer(cell_filename, shuffle_seed, inputs_shape, model_id, layer=i)
+        sub_model = copy_model_weight(dst=sub_model, src=ori_model)
+        pred_list = predict_to_bin_str_batch(model=sub_model, inputs=data_samples)
+        for j in range(len(pred_list)):
+            binstr_list[j] += pred_list[j]
+
+    matrix = np.zeros((data_samples.shape[0], data_samples.shape[0]))
+
+    for i in range(data_samples.shape[0]):
+        for j in range(data_samples.shape[0]):
+            dis, maxn = hamming_distance(binstr_list[i], binstr_list[j])
+            matrix[i][j] = maxn - dis
+
+    det = np.linalg.det(matrix)
+
+    return det
+'''
+
+
+def calculate_dataset_level(spec: ModelSpec, inputs_shape: tuple, data_samples: tf.Tensor):
+    binstr_list = [""] * data_samples.shape[0]
+    ori_model = get_model_by_spec(spec, inputs_shape)
+
+    for i in range(len(ori_model.layers)):
+        sub_model = get_model_by_spec_and_layer(spec, i, inputs_shape)
         sub_model = copy_model_weight(dst=sub_model, src=ori_model)
         pred_list = predict_to_bin_str_batch(model=sub_model, inputs=data_samples)
         for j in range(len(pred_list)):
@@ -130,9 +172,10 @@ if __name__ == '__main__':
     sub_model = copy_model_weight(sub_model, ori_model)
     '''
     np.random.seed(0)
-    data = tf.convert_to_tensor(np.random.randint(128, size=(5, 28, 28, 1)))
-    print(calculate_dataset_level('./cell_list.pkl',
-                                  shuffle_seed=0,
-                                  inputs_shape=(None, 28, 28, 1),
-                                  model_id=0,
-                                  data_samples=data))
+    input_shape = (5, 28, 28, 1)
+    data = tf.convert_to_tensor(np.random.randint(128, size=input_shape))
+
+    with open('nas-bench-101-data/nasbench_101_cell_list_7.pkl', 'rb') as f:
+        cell_list = pickle.load(f)
+
+    print(calculate_dataset_level(ModelSpec(cell_list[10000][0], cell_list[10000][1]), input_shape, data))

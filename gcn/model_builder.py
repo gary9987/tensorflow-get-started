@@ -18,6 +18,9 @@ import numpy as np
 from model_spec import ModelSpec
 
 
+tf.config.experimental_run_functions_eagerly(True)
+
+
 def compute_vertex_channels(input_channels, output_channels, matrix):
     """
     Computes the number of channels at every vertex.
@@ -114,9 +117,13 @@ def truncate(inputs_shape, inputs, channels, data_format):
 
 #class CellModel(tf.keras.layers.Layer):
 class CellModel(tf.keras.Model):
-    def __init__(self, spec: ModelSpec, inputs_shape, channels, is_training):
+    def __init__(self, spec: ModelSpec, inputs_shape, channels, is_training, store_intermediate=True):
         super(CellModel, self).__init__()
 
+        self.store_intermediate = store_intermediate
+        if self.store_intermediate:
+            self.out2bin_layer = tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0)))
+        self.intermediate_out = None
         self.inputs_shape = inputs_shape
         self.spec = spec
         self.is_training = is_training
@@ -185,6 +192,7 @@ class CellModel(tf.keras.Model):
         # Construct tensors from input forward
         tensors = [tf.identity(inputs, name='input')]
         final_concat_in = []
+        intermediate_list = []
 
         for t in range(1, self.num_vertices - 1):
 
@@ -203,6 +211,8 @@ class CellModel(tf.keras.Model):
 
             # Perform op at vertex t
             vertex_value = self.ops[t](vertex_input)
+            if self.store_intermediate and vertex_value.shape[0] is not None:
+                intermediate_list.append(tf.reshape(self.out2bin_layer(vertex_value), (inputs.shape[0], -1)))
 
             tensors.append(vertex_value)
             if self.spec.matrix[t, self.num_vertices - 1]:
@@ -222,6 +232,7 @@ class CellModel(tf.keras.Model):
             if self.spec.matrix[0, self.num_vertices - 1]:
                 outputs += self.outputs1(tensors[0])
 
+        self.intermediate_out = tf.keras.layers.concatenate(intermediate_list, axis=-1)
         return outputs
 
     def build_graph(self):
