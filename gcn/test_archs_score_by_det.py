@@ -6,14 +6,14 @@ import tensorflow as tf
 import numpy as np
 from sklearn.metrics import ndcg_score
 from tqdm import tqdm
-
+from argparse import ArgumentParser
 from model_util import calculate_dataset_level
 from tensorflow.keras.datasets import cifar10
 import os
 import wget
 from model_spec import ModelSpec
 from scipy.stats import kendalltau
-from test_nasbench_metric import randon_select_data, mAP
+from test_nasbench_metric import mAP
 
 
 def setup():
@@ -71,15 +71,24 @@ def get_arch_score_and_acc_list(query_idx: int, sample_arch: List, sample_data: 
     return score_list, valid_acc_list
 
 
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--test_count', type=int, default=200)
+    parser.add_argument('--output', type=str, default='output.pickle')
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
+    args = parse_args()
     setup()
-    cell_list = get_all_arch_list(shuffle=True)
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
     sample_data, _ = get_balanced_n_data(20, 10, x_train, y_train)
     query_idx = 0
 
+    random.seed(time.time())
+    cell_list = get_all_arch_list(shuffle=True)
     num_select = 100
-    test_count = 1000
+    test_count = args.test_count
     kt_list = []
     p_list = []
     mAP_list = []
@@ -107,5 +116,8 @@ if __name__ == '__main__':
     print(f'Std mAP value: {np.std(mAP_list)}')
     print(f'Avg ndcg value: {ndcg}')
     print(f'Std ndcg value: {np.std(ndcg_list)}')
+
+    with open(args.output, 'wb') as f:
+        pickle.dump({'kt': kt_list, 'p': p_list, 'mAP': mAP_list, 'ndcg': ndcg_list}, f)
 
 
