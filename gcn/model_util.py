@@ -1,6 +1,8 @@
 import pickle
-from typing import Tuple, Union
-
+import time
+import timeit
+from typing import Tuple, Union, Optional
+from scipy.spatial.distance import hamming
 import tensorflow as tf
 import random
 import numpy as np
@@ -91,9 +93,26 @@ def predict_to_bin_str_batch(model: tf.keras.Model, inputs: tf.Tensor) -> list:
     return [''.join(str(e) for e in out) for out in model_outs]
 
 
-def hamming_distance(str1: str, str2: str) -> Tuple[int, int]:
-    hamming_list = list(map(lambda x, y: x != y, str1, str2))
-    return sum(hamming_list), len(str1)
+def predict_to_bin_ndarray(model: tf.keras.Model, inputs: tf.Tensor) -> np.ndarray:
+    # Clone a new model and set weights by original model weights
+    # private_model = tf.keras.models.clone_model(model)
+    # private_model.set_weights(model.get_weights())
+    # The function of added layer is equal to f(x) = (1 if x > 0 else 0)
+    # private_model.add(tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0))))
+    # model_outs = list(tf.reshape(private_model.predict(inputs), (inputs.shape[0], -1)).numpy().astype(int))
+    pred = model.predict(inputs)
+    if model.layers[-1]._name.startswith('cell_model'):
+        model_outs = model.layers[-1].intermediate_out.numpy().astype(int)
+    else:
+        pred = tf.keras.layers.Lambda(lambda x: tf.sign(tf.maximum(x, 0)))(pred)
+        model_outs = np.reshape(pred, (inputs.shape[0], -1)).astype(int)
+
+    return model_outs
+
+
+def hamming_distance(arr1: np.ndarray, arr2: np.ndarray) -> Tuple[float, int]:
+    dis = hamming(arr1, arr2)
+    return dis, 1
 
 
 # A dataset 的難易程度 Model 5 layers
@@ -139,26 +158,27 @@ def calculate_dataset_level(cell_filename: str, shuffle_seed: int, inputs_shape:
 '''
 
 
-def calculate_dataset_level(spec: ModelSpec, inputs_shape: tuple, data_samples: tf.Tensor):
-    binstr_list = [""] * data_samples.shape[0]
+def calculate_dataset_level(spec: ModelSpec, inputs_shape: tuple, data_samples: Union[tf.Tensor, np.ndarray]):
+    bin_list = [np.array([])] * data_samples.shape[0]
     ori_model = get_model_by_spec(spec, inputs_shape)
 
     for i in range(len(ori_model.layers)):
         sub_model = get_model_by_spec_and_layer(spec, i, inputs_shape)
         sub_model = copy_model_weight(dst=sub_model, src=ori_model)
-        pred_list = predict_to_bin_str_batch(model=sub_model, inputs=data_samples)
+        pred_list = predict_to_bin_ndarray(model=sub_model, inputs=data_samples)
+
         for j in range(len(pred_list)):
-            binstr_list[j] += pred_list[j]
+            bin_list[j] = np.concatenate((bin_list[j], pred_list[j]), axis=0)
 
-    matrix = np.zeros((data_samples.shape[0], data_samples.shape[0]))
+    bin_list = np.array(bin_list)
 
-    for i in range(data_samples.shape[0]):
-        for j in range(data_samples.shape[0]):
-            dis, maxn = hamming_distance(binstr_list[i], binstr_list[j])
-            matrix[i][j] = maxn - dis
+    def get_matrix_value(i, j):
+        dis, maxn = hamming_distance(bin_list[i], bin_list[j])
+        return maxn - dis
 
+    matrix = [[get_matrix_value(i, j) for j in range(data_samples.shape[0])] for i in range(data_samples.shape[0])]
+    matrix2 = np.array(matrix)
     det = np.linalg.det(matrix)
-
     return det
 
 
