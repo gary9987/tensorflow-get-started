@@ -14,15 +14,7 @@ import wget
 from model_spec import ModelSpec
 from scipy.stats import kendalltau
 from test_nasbench_metric import mAP
-
-
-def setup():
-    if not os.path.exists('nas-bench-101-data'):
-        print('Downloading nas-bench-101-data...')
-        file_name = wget.download('https://www.dropbox.com/s/vkexemlekfabxa1/nas-bench-101-data.zip?dl=1')
-        print('Save data to {}'.format(file_name))
-        os.system('unzip {}'.format(file_name))
-        print(f'Unzip data finish.')
+from test_utils import download_nas_bench_101_data, get_all_arch_list
 
 
 def get_balanced_n_data(n: int, num_class: int, x, y):
@@ -42,18 +34,6 @@ def get_balanced_n_data(n: int, num_class: int, x, y):
                     break
 
     return np.array(x_list), np.array(y_list)
-
-
-def get_all_arch_list(shuffle=False):
-    cell_list = []
-    for matrix_size in range(3, 4):
-        with open(os.path.join('nas-bench-101-data', f'nasbench_101_cell_list_{matrix_size}.pkl'), 'rb') as f:
-            cell_list += pickle.load(f)
-
-    if shuffle:
-        random.shuffle(cell_list)
-
-    return cell_list
 
 
 def get_arch_score_and_acc_list(query_idx: int, sample_arch: List, sample_data: Union[tf.Tensor, np.ndarray]) -> Tuple[List, List]:
@@ -80,7 +60,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    setup()
+    download_nas_bench_101_data()
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
     sample_data, _ = get_balanced_n_data(20, 10, x_train, y_train)
     query_idx = 0

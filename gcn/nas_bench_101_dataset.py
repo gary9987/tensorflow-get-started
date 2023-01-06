@@ -649,12 +649,7 @@ class NasBench101Dataset(Dataset):
             logging.info(f'graph_{no}.npz is saved.')
     '''
 
-    def read(self):
-        if self.repeat > 1 or self.request_lower is not None:
-            if self.mid_point is None:
-                raise Exception("mid_point is not set")
-
-        output = []
+    def get_filenames(self):
         filename_list = []
 
         if self.matrix_size_list is not None:
@@ -668,6 +663,16 @@ class NasBench101Dataset(Dataset):
                 #with np.load(os.path.join(path, f'graph_{i}.npz')) as npz:
                 #    data = {'x': npz['x'], 'e': npz['e'], 'a': npz['a'], 'y': npz['y']}
                 filename_list.append(os.path.join(path, f'graph_{i}.npz'))
+
+        return filename_list
+
+    def read(self):
+        if self.repeat > 1 or self.request_lower is not None:
+            if self.mid_point is None:
+                raise Exception("mid_point is not set")
+
+        output = []
+        filename_list = self.get_filenames()
 
         if self.shuffle:
             random.seed(self.shuffle_seed)
