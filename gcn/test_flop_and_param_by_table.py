@@ -23,6 +23,7 @@ logger.addHandler(handler)
 
 
 def get_dataset():
+    #194617
     dataset = NasBench101Dataset(start=0, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
     dataset.apply(LabelScale_NasBench101())
     dataset.apply(RemoveEdgeFeature_NasBench101())
@@ -42,6 +43,19 @@ def get_arch_flop_or_param_and_acc_list(sample_datasets: List, get_metric_idx: i
     for data in sample_datasets:
         sum_x = np.sum(data.x, axis=0)
         metric_list.append(sum_x[get_metric_idx])
+        val_acc = data.y[1]
+        valid_acc_list.append(val_acc)
+
+    return metric_list, valid_acc_list
+
+
+def get_arch_flop_divided_by_param_and_acc_list(sample_datasets: List, flops_idx: int, params_idx: int) -> Tuple[List, List]:
+    metric_list = []
+    valid_acc_list = []
+
+    for data in sample_datasets:
+        sum_x = np.sum(data.x, axis=0)
+        metric_list.append(sum_x[flops_idx] / sum_x[params_idx])
         val_acc = data.y[1]
         valid_acc_list.append(val_acc)
 
@@ -69,10 +83,16 @@ if __name__ == '__main__':
     mAP_list = []
     ndcg_list = []
 
-    for metric in ['flops', 'params']:
+    for metric in ['flops', 'params', 'divide']:
         for i in range(test_count):
-            sample_datasets = random.choices(datasets, k=num_select)
-            score_list, val_acc_list = get_arch_flop_or_param_and_acc_list(sample_datasets, datasets.features_dict[metric])
+            sample_datasets = random.sample(list(datasets), num_select)
+            if metric == 'divide':
+                score_list, val_acc_list = get_arch_flop_divided_by_param_and_acc_list(sample_datasets,
+                                                                                       datasets.features_dict['flops'],
+                                                                                       datasets.features_dict['params'])
+            else:
+                score_list, val_acc_list = get_arch_flop_or_param_and_acc_list(sample_datasets, datasets.features_dict[metric])
+
             kt, p = kendalltau(score_list, val_acc_list)
             kt_list.append(kt)
             p_list.append(p)

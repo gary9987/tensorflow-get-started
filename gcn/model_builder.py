@@ -18,7 +18,7 @@ import numpy as np
 from model_spec import ModelSpec
 
 
-tf.config.experimental_run_functions_eagerly(True)
+tf.config.run_functions_eagerly(True)
 
 
 def compute_vertex_channels(input_channels, output_channels, matrix):
