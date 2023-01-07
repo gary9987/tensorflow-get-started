@@ -124,7 +124,7 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
             'n_estimators': 30000,  # equivalence to num_rounds
             'max_depth': 18,
             'num_leaves': 40,
-            'max_bin': 336,
+            'max_bin': 255,
             'feature_fraction': 0.1532,
             'min_child_weight': 0.5822,
             'lambda_l1': 0.6909,
