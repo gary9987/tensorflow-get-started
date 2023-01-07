@@ -13,7 +13,8 @@ from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 from nas_bench_101_dataset import NasBench101Dataset, train_valid_test_split_dataset
 from transformation import *
 from sklearn.metrics import mean_squared_error
-from test_nasbench_rnn import test_metric_rnn
+from test_nasbench_ensemble import test_metric_partial_ensemble
+from xgboost import XGBRegressor
 
 
 def get_MLP_model():
@@ -28,7 +29,7 @@ def get_MLP_model():
     return model
 
 
-def get_dataset_for_mlp(graph_dataset) -> Dict[str, ndarray]:
+def get_dataset_only_flops_params_to_ndarray(graph_dataset) -> Dict[str, ndarray]:
     x_list = []
     y_list = []
 
@@ -42,13 +43,13 @@ def get_dataset_for_mlp(graph_dataset) -> Dict[str, ndarray]:
     return {'x': np.array(x_list), 'y': np.array(y_list)}
 
 
-def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int):
+def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int, model_type: str):
     is_filtered = True
     lr = 0.001
     train_epochs = 100
     patience = 20
 
-    weight_file_dir = f'flops_params_mlp_size{data_size}'
+    weight_file_dir = f'flops_params_{model_type}_size{data_size}'
     weight_filename = f'{weight_file_dir}_{run}'
 
     Path(os.path.join(model_output_dir, weight_file_dir)).mkdir(parents=True, exist_ok=True)
@@ -81,20 +82,44 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
         datasets[key].apply(SelectNoneNanData_NasBench101())
         datasets[key].apply(Y_OnlyValidAcc())
         logging.info(f'key {datasets[key]}')
-        datasets[key] = get_dataset_for_mlp(datasets[key])
+        datasets[key] = get_dataset_only_flops_params_to_ndarray(datasets[key])
 
-    model = get_MLP_model()
-    model.compile(tf.keras.optimizers.Adam(learning_rate=lr), loss='mse')
-    model.fit(datasets['train']['x'], datasets['train']['y'],
-              validation_data=(datasets['valid']['x'], datasets['valid']['y']),
-              epochs=train_epochs,
-              batch_size=batch_size,
-              callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
-                         CSVLogger(os.path.join(log_dir, log_dirs[1], f'{weight_filename}_history.log'))]
-              )
+    if model_type == 'mlp':
+        model = get_MLP_model()
+        model.compile(tf.keras.optimizers.Adam(learning_rate=lr), loss='mse')
+        model.fit(datasets['train']['x'], datasets['train']['y'],
+                  validation_data=(datasets['valid']['x'], datasets['valid']['y']),
+                  epochs=train_epochs,
+                  batch_size=batch_size,
+                  callbacks=[EarlyStopping(patience=patience, restore_best_weights=True),
+                             CSVLogger(os.path.join(log_dir, log_dirs[1], f'{weight_filename}_history.log'))]
+                  )
+        model.save(weight_full_name)
+    elif model_type == 'xgb':
+        hp = {
+            'n_estimators': 20000,
+            'max_depth': 13,
+            'min_child_weight': 39,
+            'colsample_bylevel': 0.6909,
+            'colsample_bytree': 0.2545,
+            'reg_lambda': 31.3933,
+            'reg_alpha': 0.2417,
+            'learning_rate': 0.00824,
+            'booster': 'gbtree',
+            'early_stopping_rounds': 100,
+            'random_state': 0,
+            'objective': 'reg:squarederror',
+            'eval_metric': 'rmse',
+            'tree_method': 'gpu_hist'  # GPU
+        }
+        model = XGBRegressor(**hp)
+        model.fit(X=datasets['train']['x'], y=datasets['train']['y'],
+                  eval_set=[(datasets['valid']['x'], datasets['valid']['y'])])
+        model.save_model(weight_full_name)
+    else:
+        raise ValueError(f'model_type {model_type} is not supported')
 
-    logging.info(f'Model will save to {weight_full_name}')
-    model.save(weight_full_name)
+    logging.info(f'Model is saved to {weight_full_name}')
 
     pred = model.predict(datasets['test']['x'])
     loss = np.sqrt(mean_squared_error(datasets['test']['y'], pred))
@@ -103,16 +128,16 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
     for y, predict in zip(datasets['test']['y'], pred):
         logging.info(f'{y} {predict}')
 
-    return test_metric_rnn(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'], model)
+    return test_metric_partial_ensemble(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'], model)
 
 
-def train_n_runs(model_output_dir: str, n: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int):
+def train_n_runs(model_output_dir: str, n: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int, model_type: str):
     metrics = ['MSE', 'MAE', 'KT', 'P', 'mAP', 'NDCG']
     results = {i: [] for i in metrics}
 
     for i in range(n):
         # {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p}
-        metrics = train(model_output_dir, i, data_size, test_dataset, batch_size)
+        metrics = train(model_output_dir, i, data_size, test_dataset, batch_size, model_type)
         print(metrics)
         for m in metrics:
             results[m].append(metrics[m])
@@ -130,14 +155,15 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int, test_dataset: Di
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--model_output_dir', type=str, default='flops_params_mlp_model')
+    parser.add_argument('--model_type', type=str, default='xgb', help='Can be mlp, xgb, lgb')
     parser.add_argument('--select_range_list', type=int, nargs='+', default=[0, 1, 2])
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
-    Path(args.model_output_dir).mkdir(exist_ok=True)
+    model_output_dir = f'flops_params_{args.model_type}_model'
+    Path(model_output_dir).mkdir(exist_ok=True)
 
     # 194617
     test_dataset = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
@@ -146,7 +172,7 @@ if __name__ == '__main__':
     test_dataset.apply(LabelScale_NasBench101())
     test_dataset.apply(SelectNoneNanData_NasBench101())
     test_dataset.apply(Y_OnlyValidAcc())
-    test_dataset = get_dataset_for_mlp(test_dataset)
+    test_dataset = get_dataset_only_flops_params_to_ndarray(test_dataset)
 
     range_list = [
         [500, 10501, 500, 16],
@@ -156,5 +182,5 @@ if __name__ == '__main__':
     range_list = [range_list[i] for i in args.select_range_list]
     for r in range_list:
         for i in range(r[0], r[1], r[2]):
-            train_n_runs(args.model_output_dir, n=10, data_size=i, test_dataset=test_dataset, batch_size=r[3])
+            train_n_runs(model_output_dir, n=10, data_size=i, test_dataset=test_dataset, batch_size=r[3], model_type=args.model_type)
 
