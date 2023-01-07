@@ -1,4 +1,5 @@
 import logging
+import pickle
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -15,6 +16,7 @@ from transformation import *
 from sklearn.metrics import mean_squared_error
 from test_nasbench_ensemble import test_metric_partial_ensemble
 from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
 
 
 def get_MLP_model():
@@ -116,6 +118,28 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
         model.fit(X=datasets['train']['x'], y=datasets['train']['y'],
                   eval_set=[(datasets['valid']['x'], datasets['valid']['y'])])
         model.save_model(weight_full_name)
+    elif model_type == 'lgb':
+        hp = {
+            'device': 'gpu',
+            'n_estimators': 30000,  # equivalence to num_rounds
+            'max_depth': 18,
+            'num_leaves': 40,
+            'max_bin': 336,
+            'feature_fraction': 0.1532,
+            'min_child_weight': 0.5822,
+            'lambda_l1': 0.6909,
+            'lambda_l2': 0.2545,
+            'boosting_type': 'gbdt',
+            'early_stopping_round': 100,
+            'learning_rate': 0.0218,
+            'objective': 'regression',
+            'metric': 'rmse',
+            'random_state': 0
+        }
+        model = LGBMRegressor(**hp)
+        model.fit(X=datasets['train']['x'], y=datasets['train']['y'],
+                  eval_set=[(datasets['valid']['x'], datasets['valid']['y'])])
+        pickle.dump(model, open(weight_full_name, 'wb'))
     else:
         raise ValueError(f'model_type {model_type} is not supported')
 
@@ -155,7 +179,7 @@ def train_n_runs(model_output_dir: str, n: int, data_size: int, test_dataset: Di
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--model_type', type=str, default='xgb', help='Can be mlp, xgb, lgb')
+    parser.add_argument('--model_type', type=str, default='mlp', help='Can be mlp, xgb, lgb')
     parser.add_argument('--select_range_list', type=int, nargs='+', default=[0, 1, 2])
     return parser.parse_args()
 
