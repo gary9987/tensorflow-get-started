@@ -200,14 +200,14 @@ def parse_args():
     parser.add_argument('--model_type', type=str, default='mlp', help='Can be mlp, xgb, lgb')
     parser.add_argument('--train_by', type=str, default='flops', help='Can be flops, params')
     parser.add_argument('--select_range_list', type=int, nargs='+', default=[0, 1, 2])
+    parser.add_argument('--order_list', type=int, nargs='+', default=[1, 2, 3, 4, 5])
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
 
-    order_list = [1, 2, 3, 4, 5]
-    for order in order_list:
+    for order in args.order_list:
         model_output_dir = f'flops_order{order}_{args.model_type}_model'
         Path(model_output_dir).mkdir(exist_ok=True)
         train_by = args.train_by
