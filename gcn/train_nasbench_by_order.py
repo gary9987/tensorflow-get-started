@@ -65,13 +65,13 @@ def get_dataset_only_metric_order_to_ndarray(graph_dataset, metric: str, order: 
     return {'x': np.array(x_list), 'y': np.array(y_list)}
 
 
-def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int, model_type: str, order: int, metric: str):
+def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[str, ndarray], batch_size: int, model_type: str, order: int, train_by: str):
     is_filtered = True
     lr = 0.001
     train_epochs = 100
     patience = 20
 
-    weight_file_dir = f'flops_order{order}_{model_type}_size{data_size}'
+    weight_file_dir = f'{train_by}_order{order}_{model_type}_size{data_size}'
     weight_filename = f'{weight_file_dir}_{run}'
 
     Path(os.path.join(model_output_dir, weight_file_dir)).mkdir(parents=True, exist_ok=True)
@@ -102,7 +102,7 @@ def train(model_output_dir: str, run: int, data_size: int, test_dataset: Dict[st
         datasets[key].apply(SelectNoneNanData_NasBench101())
         datasets[key].apply(Y_OnlyValidAcc())
         logging.info(f'key {datasets[key]}')
-        datasets[key] = get_dataset_only_metric_order_to_ndarray(datasets[key], metric=metric, order=order)
+        datasets[key] = get_dataset_only_metric_order_to_ndarray(datasets[key], metric=train_by, order=order)
 
     if model_type == 'mlp':
         model = get_MLP_model()
@@ -206,11 +206,12 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    train_by = args.train_by
 
     for order in args.order_list:
-        model_output_dir = f'flops_order{order}_{args.model_type}_model'
+        model_output_dir = f'{train_by}_order{order}_{args.model_type}_model'
         Path(model_output_dir).mkdir(exist_ok=True)
-        train_by = args.train_by
+
         # 194617
         test_dataset = NasBench101Dataset(start=174801, end=194617, matrix_size_list=[3, 4, 5, 6, 7], preprocessed=True)
         test_dataset.apply(RemoveTrainingTime_NasBench101())
