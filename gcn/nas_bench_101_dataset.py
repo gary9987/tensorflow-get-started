@@ -464,14 +464,16 @@ class NasBench101Dataset(Dataset):
                 if now_layer == 0 or now_layer == 4 or now_layer == 8:
                     if now_layer == 0:
                         offset_idx = 0
+                        x[offset_idx][self.features_dict['conv3x3-bn-relu']] = 1  # stem is a 'conv3x3-bn-relu' type
                     elif now_layer == 4:
                         offset_idx = 22
+                        x[offset_idx][self.features_dict['maxpool2x2']] = 1
                     else:  # now_layer == 8
                         offset_idx = 44
+                        x[offset_idx][self.features_dict['maxpool2x2']] = 1
 
                     accumulation_layer += 1
                     x[offset_idx][self.features_dict['num_layer']] = accumulation_layer
-                    x[offset_idx][self.features_dict['conv3x3-bn-relu']] = 1  # stem is a 'conv3x3-bn-relu' type
                     x[offset_idx][self.features_dict['flops']] = get_flops(model, profile_name, model.layers[now_layer].name)
                     x[offset_idx][self.features_dict['params']] = get_params(model.layers[now_layer])
                     tensor = get_tensor_shape(model_tensor, model.layers[now_layer].name)
