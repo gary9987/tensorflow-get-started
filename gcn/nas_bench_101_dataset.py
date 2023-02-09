@@ -741,7 +741,7 @@ def train_valid_test_split_dataset(data, ratio=[0.8, 0.1, 0.1]):
 
 
 if __name__ == '__main__':
-    size = 5
+    size = 3
     with open(f'./nas-bench-101-data/nasbench_101_cell_list_{size}.pkl', 'rb') as f:
         record = pickle.load(f)
 
