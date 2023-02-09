@@ -75,6 +75,7 @@ def train(model_output_dir, run: int, data_size: int):
         logging.info(f'key {datasets[key]}')
 
     for key, graphs in datasets.items():
+        # The x and a of graph are concate by Flatten4Ensemble_NasBench101() transform
         x_list = [np.squeeze(graph.a) for graph in graphs]
         y_list = [np.squeeze(graph.y[1]) for graph in graphs]
         datasets[key] = {'x': np.array(x_list), 'y': np.array(y_list)}
