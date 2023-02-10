@@ -307,7 +307,7 @@ def build_arch_model_original(spec: ModelSpec, inputs_shape, init_channel=128, n
     # stem
     model.add(base_ops.ConvBnRelu(3, 128, is_training, spec.data_format))
     shape = list(inputs_shape)
-    shape[3] = 128
+    shape[3] = init_channel
 
     for i in range(num_stacks):
         if i > 0:
