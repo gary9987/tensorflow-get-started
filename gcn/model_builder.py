@@ -232,7 +232,8 @@ class CellModel(tf.keras.Model):
             if self.spec.matrix[0, self.num_vertices - 1]:
                 outputs += self.outputs1(tensors[0])
 
-        self.intermediate_out = tf.keras.layers.concatenate(intermediate_list, axis=-1)
+        if len(intermediate_list) != 0:
+            self.intermediate_out = tf.keras.layers.concatenate(intermediate_list, axis=-1)
         return outputs
 
     def build_graph(self):
@@ -379,13 +380,15 @@ if __name__ == '__main__':
 
     spec = ModelSpec(matrix, ops)
 
-    model = build_arch_model_original(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
-    model.build([None, 28, 28, 1])
+    model = build_arch_model(spec, (None, 28, 28, 3), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    model.build([None, 28, 28, 3])
     print(model.summary())
+    '''
     tf.keras.utils.plot_model(
         model, to_file='arch_model.png', show_shapes=True, show_dtype=False,
         show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96,
         layer_range=None, show_layer_activations=False)
+        '''
 
     for layer_no in range(len(model.layers)):
         print(model.layers[layer_no].name)
@@ -396,7 +399,9 @@ if __name__ == '__main__':
 
     del model
 
-    model2 = build_arch_model(spec, (None, 28, 28, 1), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    model2 = build_arch_model_original(spec, (None, 28, 28, 3), init_channel=128, is_training=True, num_stacks=3, num_cells=3)
+    model2.build([None, 28, 28, 3])
+    print(model2.summary())
     for layer_no in range(len(model2.layers)):
         print(model2.layers[layer_no].name)
         if 'model' in model2.layers[layer_no].name:
