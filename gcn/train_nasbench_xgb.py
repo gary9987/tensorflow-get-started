@@ -133,4 +133,4 @@ if __name__ == '__main__':
     ]
     for r in range_list:
         for i in range(r[0], r[1], r[2]):
-            train_n_runs(args.model_output_dir, n=10, data_size=i)
+            train_n_runs(args.model_output_dir, n=5, data_size=i)
