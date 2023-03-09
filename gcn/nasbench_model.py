@@ -59,18 +59,22 @@ def get_weighted_mse_loss_func(mid_point, alpha):
 
 
 def bpr_loss(y_true, y_pred):
-    loss = 0
-    N = y_true.shape[0]
-    # -tf.math.log(tf.sigmoid(y_pred[:, i] - y_pred[j, i]))
+    total_loss = []
 
-    # y_true.shape[1] = length of learning curve
-    for i in range(y_true.shape[1]):
-        # y_true.shape[0] = batch size
+    N = y_true.shape[0]  # y_true.shape[0] = batch size
+    lc_length = y_true.shape[1]
+
+    for i in range(lc_length):
+        loss_value = 0
         for j in range(N):
-            loss += tf.keras.backend.switch(y_true[:, i] > y_true[j, i],
-                                            -tf.math.log(tf.sigmoid(y_pred[:, i] - y_pred[j, i])), 0)
+            loss_value += tf.reduce_sum(tf.keras.backend.switch(y_true[:, i] > y_true[j, i],
+                                                                -tf.math.log(tf.sigmoid(y_pred[:, i] - y_pred[j, i])),
+                                                                0))
+        total_loss.append(loss_value)
 
-    return tf.reduce_sum(loss, axis=-1)
+    total_loss = tf.stack(total_loss, 0)
+
+    return total_loss / N ** 2
 
 
 def is_weight_dir(filename):
