@@ -13,7 +13,7 @@ from test_nasbench_metric import randon_select_data, mAP
 from sklearn.metrics import ndcg_score
 
 
-def test_metric_partial(log_dir, weight_path, test_dataset):
+def test_metric_partial(log_dir, weight_path, model, test_dataset):
 
     if not os.path.exists(log_dir):
         Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -26,14 +26,11 @@ def test_metric_partial(log_dir, weight_path, test_dataset):
     logging.basicConfig(filename=log_path, level=logging.INFO, force=True)
     batch_size = 256
 
-    model = keras.models.load_model(weight_path,
-                                    custom_objects={'weighted_mse': tf.keras.losses.MeanSquaredError()})
-    #model = keras.models.load_model(weight_path)
 
     test_loader = BatchLoader(test_dataset, batch_size=batch_size, shuffle=False, epochs=1)
-    mse = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
-    print('Test MSE loss: {}'.format(mse))
-    logging.info('Test MSE loss: {}'.format(mse))
+    eval_loss = model.evaluate(test_loader.load(), steps=test_loader.steps_per_epoch)
+    print('Test loss: {}'.format(eval_loss))
+    logging.info('Test loss: {}'.format(eval_loss))
 
     model.compile('adam', loss='mae')
 
@@ -81,7 +78,7 @@ def test_metric_partial(log_dir, weight_path, test_dataset):
     logging.info(f'Avg ndcg value: {ndcg}')
     logging.info(f'Std ndcg value: {np.std(ndcg_list)}')
 
-    return {'MSE': mse, 'MAE': mae, 'KT': kt, 'P': p, 'mAP': avg_mAP, 'NDCG': ndcg}
+    return {'MSE': eval_loss, 'MAE': mae, 'KT': kt, 'P': p, 'mAP': avg_mAP, 'NDCG': ndcg}
 
 if __name__ == '__main__':
     log_dir = 'test_result_partial'
