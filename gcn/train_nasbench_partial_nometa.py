@@ -11,7 +11,7 @@ from transformation import *
 import logging
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
-from nasbench_model import GNN_Model, get_weighted_mse_loss_func
+from nasbench_model import GNN_Model, get_weighted_mse_loss_func, bpr_loss
 from test_nasbench_partial import test_metric_partial
 from nas_bench_101_dataset_partial import NasBench101DatasetPartial
 
@@ -118,7 +118,7 @@ def train(model_output_dir, run: int, data_size: int, batch_size: int):
         for i, j in zip(data[1], pred):
             logging.info(f'{i} {j}')
 
-    return test_metric_partial(os.path.join(log_dir, 'test_result'), weight_full_name, datasets['test'])
+    return test_metric_partial(os.path.join(log_dir, 'test_result'), weight_full_name, model, datasets['test'])
 
 
 def train_n_runs(model_output_dir: str, n: int, data_size: int, batch_size: int):
