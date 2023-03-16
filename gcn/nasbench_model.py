@@ -79,6 +79,14 @@ def bpr_loss(y_true, y_pred):
     return total_loss / tf.cast(N, tf.float32) ** 2
 
 
+def bpr_mse_loss(y_true, y_pred, mse_weight=0.9):
+    mse = tf.keras.losses.MeanSquaredError()
+    loss_mse = mse(y_true, y_pred)
+    loss_bpr = tf.reduce_mean(bpr_loss(y_true, y_pred))
+
+    return mse_weight * loss_mse + (1 - mse_weight) * loss_bpr
+
+
 def is_weight_dir(filename):
     check_list = ['ecc_conv', 'gin_conv', 'gat_conv']
     for i in check_list:
